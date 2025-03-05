@@ -1,9 +1,3 @@
-"""
-Created on Thu Feb  8 22:20:23 2024
-
-@author: saraf
-"""
-
 import torch.nn as nn
 import torch
 import gymnasium as gym
@@ -25,9 +19,9 @@ import tkinter as tk
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # name of the task on the neurogym library
-TASK = 'Foraging-v0'
-# TASK = 'ForagingBlocks-v0'
-# TASK = 'PerceptualDecisionMaking-v0'
+#TASK = 'Foraging-v0'
+TASK = 'ForagingBlocks-v0'
+# TASK = 'PerceptualDecisionMaking-v0' 
 TRAINING_KWARGS = {'dt': 100,
                    'lr': 1e-2,
                    'seq_len': 300,
@@ -172,8 +166,8 @@ def equalize_arrays(array_list):
 
     return padded_arrays
 
-
-def run_agent_in_environment(num_steps_exp, env, net=None):
+#the net was set nto None here
+def run_agent_in_environment(num_steps_exp, env, net):
     """
     Run the agent in the environment for a specified number of steps.
 
@@ -783,7 +777,7 @@ if __name__ == '__main__':
     num_networks = 10
     # create folder to save data based on env seed
     # main_folder = 'C:/Users/saraf/OneDrive/Documentos/IDIBAPS/foraging RNNs/nets/'
-    main_folder = '/home/manuel.molano/foragingRNNs/files/' # '/home/molano/foragingRNNs_data/nets/'
+    main_folder = '/home/marcaf/TFM(IDIBAPS)/rrns2/' # '/home/molano/foragingRNNs_data/nets/'
 
     # Create the main Tkinter window
     root = tk.Tk()
@@ -811,7 +805,10 @@ if __name__ == '__main__':
     fix_dur = 100
     dec_dur = 100
     prob = 0.8
-    probs = np.array([[1-prob, prob], [prob, 1-prob]])
+    #probs = np.array([[1-prob, prob], [prob, 1-prob]])
+    #Vertechi
+    probs = np.array([[0, 0.9], [0.9, 0]])
+
     # create folder to save data based on parameters
     save_folder = (f"{main_folder}{TASK}_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
                     f"d{dec_dur}_"f"prb{probs[0]}")   

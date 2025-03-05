@@ -19,7 +19,7 @@ import pandas as pd
 import seaborn as sns
 import glob
 import itertools
-import pickle
+import pickle 
 
 # check if GPU is available
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -207,7 +207,7 @@ def general_analysis(load_folder, file, env, take_best, num_steps_exp=200000,
         # load network
         # TODO: check if load_net works without net as a parameter
         net, network_number = load_net(save_folder=save_folder_net,
-                                       performance=mean_performance_smooth,
+                                       performance=mean_performance_smooth, #why are we using the mean_pernformance_smooth?
                                        take_best=take_best)
         net_nums.append(network_number)
         # test net
@@ -735,8 +735,8 @@ if __name__ == '__main__':
                     # Decision period}
                     'rewards': {'abort': 0., 'fixation': 0., 'correct': 1.}}
     TRAINING_KWARGS['classes_weights'] =\
-        torch.tensor([w_factor*TRAINING_KWARGS['dt']/(mean_ITI),
-                    w_factor*TRAINING_KWARGS['dt']/fix_dur, 2, 2])
+        torch.tensor([w_factor*TRAINING_KWARGS['dt']/(mean_ITI), #why are this dependent on the iTI and the fixed duration and not somewhat univ constant
+                    w_factor*TRAINING_KWARGS['dt']/fix_dur, 2, 2])      #it is balaced because it lasts longer? Is ir somehow normalized?
     # call function to sample
     env = gym.make(TASK, **ENV_KWARGS)
     env = pass_reward.PassReward(env)
