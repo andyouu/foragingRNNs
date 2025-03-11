@@ -127,8 +127,7 @@ def plot_GLM(ax, GLM_df, alpha=1):
 
 
 def load_net(save_folder, performance, take_best=True):
-    # check if net.pth exists in the folder (for nets that have not been saved
-    # several times during training)
+    # this code is obsolete, we already store the best-performing nets
     net_pth_path = os.path.join(save_folder, 'net.pth')
     if os.path.exists(net_pth_path):
         # If net.pth exists, load it directly

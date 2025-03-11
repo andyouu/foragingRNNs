@@ -28,11 +28,11 @@ TRAINING_KWARGS = {'dt': 100,
                    'TASK': TASK}
 
 def create_env(env_seed, mean_ITI, max_ITI, fix_dur, dec_dur,
-               blk_dur, probs):
+               blk_dur, probs,task):
     """
     Create an environment with the specified parameters.
     """
-    if TASK == 'Foraging-v0':
+    if task == 'Foraging-v0':
         env_kwargs = {'dt': TRAINING_KWARGS['dt'], 'timing':
                         {'ITI': ngym.ngym_random.TruncExp(mean_ITI, 100, max_ITI),
                             # mean, min, max
@@ -40,11 +40,11 @@ def create_env(env_seed, mean_ITI, max_ITI, fix_dur, dec_dur,
                         # Decision period}
                         'rewards': {'abort': 0., 'fixation': 0., 'correct': 1.}}
         # call function to sample
-        env = gym.make(TASK, **env_kwargs)
+        env = gym.make(task, **env_kwargs)
         env = pass_reward.PassReward(env)
         env = pass_action.PassAction(env)
         env = side_bias.SideBias(env, probs=probs, block_dur=blk_dur)
-    elif TASK == 'ForagingBlocks-v0':
+    elif task == 'ForagingBlocks-v0':
         env_kwargs = {'dt': TRAINING_KWARGS['dt'], 'probs': probs[0],
                         'blk_dur': blk_dur, 'timing':
                             {'ITI': ngym.ngym_random.TruncExp(mean_ITI, 100, max_ITI),        
@@ -53,7 +53,7 @@ def create_env(env_seed, mean_ITI, max_ITI, fix_dur, dec_dur,
                         # Decision period}
                         'rewards': {'abort': 0., 'fixation': 0., 'correct': 1.}}
         # call function to sample
-        env = gym.make(TASK, **env_kwargs)
+        env = gym.make(task, **env_kwargs)
         env = pass_reward.PassReward(env)
         env = pass_action.PassAction(env)
 
@@ -167,7 +167,7 @@ def equalize_arrays(array_list):
     return padded_arrays
 
 #the net was set nto None here
-def run_agent_in_environment(num_steps_exp, env, net):
+def run_agent_in_environment(num_steps_exp, env, net = None):
     """
     Run the agent in the environment for a specified number of steps.
 
@@ -777,7 +777,7 @@ if __name__ == '__main__':
     num_networks = 10
     # create folder to save data based on env seed
     # main_folder = 'C:/Users/saraf/OneDrive/Documentos/IDIBAPS/foraging RNNs/nets/'
-    main_folder = '/home/marcaf/TFM(IDIBAPS)/rrns2/' # '/home/molano/foragingRNNs_data/nets/'
+    main_folder = '/home/marcaf/TFM(IDIBAPS)/rrns2/networks/' # '/home/molano/foragingRNNs_data/nets/'
 
     # Create the main Tkinter window
     root = tk.Tk()
@@ -827,7 +827,7 @@ if __name__ == '__main__':
             # create the environment with the parameters
             env_kwargs, env = create_env(env_seed=env_seed, mean_ITI=mean_ITI, max_ITI=max_ITI,
                                         fix_dur=fix_dur, dec_dur=dec_dur,
-                                        blk_dur=bd, probs=probs)
+                                        blk_dur=bd, probs=probs,task = TASK)
             if debug:
                 data = run_agent_in_environment(num_steps_exp=10000, env=env)
                 gt = np.array(data['gt'])

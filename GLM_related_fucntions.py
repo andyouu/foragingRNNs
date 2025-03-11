@@ -15,15 +15,15 @@ def GLM_regressors(df):
 
     # calculate correct_choice regressor r_+
     df_glm.loc[df_glm['outcome_bool'] == 0, 'r_plus']  = 0
-    df_glm.loc[(df_glm['outcome_bool'] == 1) & (df_glm['choice'] == 'left'), 'r_plus'] = -1
-    df_glm.loc[(df_glm['outcome_bool'] == 1) & (df_glm['choice'] == 'right'), 'r_plus'] = 1
+    df_glm.loc[(df_glm['outcome_bool'] == 1) & (df_glm['choice'] == 0), 'r_plus'] = -1
+    df_glm.loc[(df_glm['outcome_bool'] == 1) & (df_glm['choice'] == 1), 'r_plus'] = 1
     df_glm['r_plus'] = pd.to_numeric(df_glm['r_plus'], errors='coerce')
 
     # same as above but for r_-
     # define conditions
     df_glm.loc[df_glm['outcome_bool'] == 1, 'r_minus']  = 0
-    df_glm.loc[(df_glm['outcome_bool'] == 0) & (df_glm['choice'] == 'left'), 'r_minus'] = -1
-    df_glm.loc[(df_glm['outcome_bool'] == 0) & (df_glm['choice'] == 'right'), 'r_minus'] = 1
+    df_glm.loc[(df_glm['outcome_bool'] == 0) & (df_glm['choice'] == 0), 'r_minus'] = -1
+    df_glm.loc[(df_glm['outcome_bool'] == 0) & (df_glm['choice'] == 1), 'r_minus'] = 1
     df_glm['r_minus'] = pd.to_numeric(df_glm['r_minus'], errors='coerce')
 
     # Creating columns for previous trial results
