@@ -807,7 +807,7 @@ if __name__ == '__main__':
     prob = 0.8
     #probs = np.array([[1-prob, prob], [prob, 1-prob]])
     #Vertechi
-    probs = np.array([[0, 0.9], [0.9, 0]])
+    probs = np.array([[0.3, 0.7], [0.7, 0.3]])
 
     # create folder to save data based on parameters
     save_folder = (f"{main_folder}{TASK}_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
