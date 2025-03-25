@@ -128,11 +128,16 @@ def general_analysis(load_folder, env, num_steps_exp, verbose, probs_task):
                         plt.show()
                     
                     # Calculate performance metrics
-                    perf = np.array(data['perf'])
+                    block = np.unique(data['prob_r'])
+                    blocks = np.array(data['prob_r'])
+                    perf = np.array(data['perf'])     
                     perf = perf[perf != -1]  # Remove invalid values
-                    mean_perf = np.mean(perf)
-                    
-                    if mean_perf < 0.6:
+                    for blk in block:
+                      perf_cond = perf[blocks==blk]
+                      mean_perf_cond = np.mean(perf_cond)
+                      print('block: ' blk)
+                      print(mean_perf_cond)
+                    if mean_perf < 0.6:  # TODO: make an input parameter
                         print(f'Performance of network {seed} below threshold: {mean_perf}')
                     else:
                         print(f'Performance of network {seed} above threshold: {mean_perf}')
