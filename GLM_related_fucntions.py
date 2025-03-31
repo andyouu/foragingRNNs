@@ -250,7 +250,7 @@ def plot_GLM_prob_switch(ax, GLM_df, alpha=1):
     ax.set_xlabel('Previous trials')
 
 def glm_switch_analysis(data,seed,mean_perf):
-    perf_threshold = 0.5
+    perf_threshold = 0.1
     if mean_perf < perf_threshold:  
         print(f'Performance of network {seed} below threshold: {mean_perf}')
     else:

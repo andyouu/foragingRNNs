@@ -97,7 +97,9 @@ def general_analysis(model,load_folder, num_steps_exp, verbose, probs_task):
                         dec_dur=dec_dur,
                         blk_dur=blk_dur, 
                         probs=probs_task, 
-                        task= task_env
+                        task= task_env,
+                        #set to true to consider duration-variable blocks
+                        variable_blk_dur = False
                     )
                     
                     dir_path = os.path.join(root, dir_name)
@@ -223,7 +225,7 @@ if __name__ == '__main__':
     [0.4, 0.6], [0.6, 0.4]
     ])
     #seeds 42 and 13 and 100
-    seed = 42
+    seed = 13
     np.random.seed(seed)
     probs_task = []
     for i in range(100):
@@ -231,9 +233,9 @@ if __name__ == '__main__':
         probs_task.append(blocks[j])
 
     print("Selected blocks:", probs_task)
-    probs_net = np.array([[0.2, 0.8],[0.8, 0.2]])
+    probs_net = np.array([[0, 0.9],[0.9, 0]])
     # to avaluate on the same enviroment than the training
-    #probs_task = np.array([[0.1, 0.9],[0.9, 0.1]])
+    probs_task = [np.array([0.3, 0.7]), np.array([0.7, 0.3])]
     #env.reset()
     #Change ForagingBlocks for whatever TASK teh network is doing
     folder = (f"{main_folder}/ForagingBlocks_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
@@ -241,7 +243,7 @@ if __name__ == '__main__':
     redo = True
     # Check if analysis_results.pkl exists in the main folder
     if not os.path.exists(f'{folder}/analysis_results.pkl') or redo:
-        general_analysis(model = 'inference_based',load_folder=folder, num_steps_exp=100000, verbose=False, probs_task=probs_task)
+        general_analysis(model = 'glm_prob_r',load_folder=folder, num_steps_exp=100000, verbose=False, probs_task=probs_task)
         # TODO: move inside general_analysis
         #save_general_analysis_results(sv_folder=folder, seeds=seeds, mean_perf_list=mean_perf_list,
         #                            mean_perf_smooth_list=mean_perf_smooth_list, iti_bins=iti_bins, 

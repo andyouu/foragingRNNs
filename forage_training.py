@@ -28,7 +28,7 @@ TRAINING_KWARGS = {'dt': 100,
                    'TASK': TASK}
 
 def create_env(env_seed, mean_ITI, max_ITI, fix_dur, dec_dur,
-               blk_dur, probs,task):
+               blk_dur, probs,task,variable_blk_dur):
     """
     Create an environment with the specified parameters.
     """
@@ -47,7 +47,7 @@ def create_env(env_seed, mean_ITI, max_ITI, fix_dur, dec_dur,
     elif task == 'ForagingBlocks-v0':
         # we have changed 'probs' = probs[0] for 'probs' = probs to enable Cate's task, it should work correctly
         env_kwargs = {'dt': TRAINING_KWARGS['dt'], 'probs': probs,
-                        'blk_dur': blk_dur, 'timing':
+                        'blk_dur': blk_dur, 'variable_blk_dur' : variable_blk_dur, 'timing':
                             {'ITI': ngym.ngym_random.TruncExp(mean_ITI, 100, max_ITI),        
                              # mean, min, max
                             'fixation': fix_dur, 'decision': dec_dur},
@@ -823,7 +823,7 @@ if __name__ == '__main__':
     prob = 0.8
     #probs = np.array([[1-prob, prob], [prob, 1-prob]])
     #Vertechi
-    probs = np.array([[0.3, 0.7], [0.7, 0.3]])
+    probs = [np.array([0.3, 0.7]), np.array([0.7, 0.3])]
 
     # create folder to save data based on parameters
     save_folder = (f"{main_folder}{TASK}_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
@@ -843,7 +843,7 @@ if __name__ == '__main__':
             # create the environment with the parameters
             env_kwargs, env = create_env(env_seed=env_seed, mean_ITI=mean_ITI, max_ITI=max_ITI,
                                         fix_dur=fix_dur, dec_dur=dec_dur,
-                                        blk_dur=bd, probs=probs,task = TASK)
+                                        blk_dur=bd, probs=probs,task = TASK,variable_blk_dur = False)
             if debug:
                 data = run_agent_in_environment(num_steps_exp=10000, env=env)
                 gt = np.array(data['gt'])
