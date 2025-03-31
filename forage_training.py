@@ -45,7 +45,21 @@ def create_env(env_seed, mean_ITI, max_ITI, fix_dur, dec_dur,
         env = pass_action.PassAction(env)
         env = side_bias.SideBias(env, probs=probs, block_dur=blk_dur)
     elif task == 'ForagingBlocks-v0':
-        env_kwargs = {'dt': TRAINING_KWARGS['dt'], 'probs': probs[0],
+        # we have changed 'probs' = probs[0] for 'probs' = probs to enable Cate's task, it should work correctly
+        env_kwargs = {'dt': TRAINING_KWARGS['dt'], 'probs': probs,
+                        'blk_dur': blk_dur, 'timing':
+                            {'ITI': ngym.ngym_random.TruncExp(mean_ITI, 100, max_ITI),        
+                             # mean, min, max
+                            'fixation': fix_dur, 'decision': dec_dur},
+                        # Decision period}
+                        'rewards': {'abort': 0., 'fixation': 0., 'correct': 1.}}
+        # call function to sample
+        env = gym.make(task, **env_kwargs)
+        env = pass_reward.PassReward(env)
+        env = pass_action.PassAction(env)
+    elif task == 'NewForagingBlocks-v0':
+        # we have changed 'probs' = probs[0] for 'probs' = probs to enable Cate's task, it should work correctly
+        env_kwargs = {'dt': TRAINING_KWARGS['dt'], 'probs': probs,
                         'blk_dur': blk_dur, 'timing':
                             {'ITI': ngym.ngym_random.TruncExp(mean_ITI, 100, max_ITI),        
                              # mean, min, max
@@ -212,6 +226,8 @@ def run_agent_in_environment(num_steps_exp, env, net = None):
             act_pr_mat.append(action_probs)
             # Assuming `net` returns action probabilities
             action_probs = torch.nn.functional.softmax(action_probs, dim=2)
+            # MAybe not get always the one with the mex probability but get them with the probabilities each actions actually have
+            # action = torch.multinomial(action_probs[0, 0], 1).item() (suggested by deepseek)
             action = torch.argmax(action_probs[0, 0]).item()
 
         ob, rew, _, _, info = env.step(action)

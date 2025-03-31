@@ -4,6 +4,11 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import sys
 from statsmodels.stats.outliers_influence import variance_inflation_factor
+import statsmodels.formula.api as smf
+
+
+
+import forage_training as ft
 
 def calculate_vif(df_glm):
     """
@@ -45,10 +50,10 @@ def calculate_vif(df_glm):
     
     return vif_data
 
-def GLM_regressors(df):
+def GLM_regressors_prob_r(df):
     # Prepare df columns
     # Converting the 'outcome' column to boolean values
-    select_columns = ['reward', 'actions', 'iti']
+    select_columns = ['reward', 'actions', 'iti','prob_r']
     df_glm = df.loc[:, select_columns].copy()
     # subtract 2 from actions to get 0 for left and 1 for right
     df_glm['outcome_bool'] = df_glm['reward']
@@ -82,7 +87,7 @@ def GLM_regressors(df):
     return df_glm, regressors
 
 
-def plot_GLM(ax, GLM_df, alpha=1):
+def plot_GLM_prob_r(ax, GLM_df, alpha=1):
     orders = np.arange(len(GLM_df))
 
     # filter the DataFrame to separate the coefficients
@@ -105,3 +110,176 @@ def plot_GLM(ax, GLM_df, alpha=1):
 
     ax.set_ylabel('GLM weight')
     ax.set_xlabel('Previous trials')
+
+def glm_prob_r_analysis(data,seed,mean_perf):
+    perf_threshold = 0.5
+    if mean_perf < perf_threshold:  
+        print(f'Performance of network {seed} below threshold: {mean_perf}')
+    else:
+        print(f'Performance of network {seed} above threshold: {mean_perf}')
+        
+        # Prepare data for GLM analysis
+        df = ft.dict2df(data)
+        df_glm, regressors_string = GLM_regressors_prob_r(df)
+        regressor_list = [x.strip() for x in regressors_string.split(' + ')] + ['choice']
+        # Create subset DataFrame with only these regressors
+        df_vif = df_glm[regressor_list].copy()
+        print(calculate_vif(df_vif))
+        
+        try:
+            # Fit GLM model
+            #mM_logit = smf.logit(formula='choice ~ ' + regressors_string,data=df_glm).fit()
+            #adding regularitzation
+            mM_logit = smf.logit(formula='choice ~ ' + regressors_string,data=df_glm).fit()
+
+            
+            # Create results dataframe
+            GLM_df = pd.DataFrame({
+                'coefficient': mM_logit.params,
+                'std_err': mM_logit.bse,
+                'z_value': mM_logit.tvalues,
+                'p_value': mM_logit.pvalues,
+                'conf_Interval_Low': mM_logit.conf_int()[0],
+                'conf_Interval_High': mM_logit.conf_int()[1]
+            })
+        except Exception as e:
+            print(f"Error fitting GLM for {seed}: {e}")
+        return GLM_df
+        
+
+def GLM_regressors_switch(df):
+    """
+    Summary:
+    This function processes the data needed to obtain the regressors and derives the 
+    formula for the glm
+
+    Args:
+        df ([Dataframe]): [dataframe with experimental data]
+        n ([int]): [number of trials back considered]
+
+    Returns:
+        new_df([Dataframe]): [dataframe with processed data restrcted to the regression]
+        regressors_string([string]) :  [regressioon formula]
+    """
+    select_columns = ['reward', 'actions', 'iti']
+    df_glm = df.loc[:, select_columns].copy()
+    # subtract 2 from actions to get 0 for left and 1 for right
+    df_glm['outcome_bool'] = df_glm['reward']
+    df_glm['choice'] = df_glm['actions']-2
+    df_glm.loc[df_glm['choice']<0, 'choice'] = np.nan
+    # Select the columns needed for the regressors
+    df_glm = df_glm.copy()
+
+    #TODO: A column indicating significant columns will be constructed
+    # session_counts = df_glm['session'].value_counts()
+    # mask = df_glm['session'].isin(session_counts[session_counts > 50].index)
+    # df_glm['sign_session'] = 0
+    # df_glm.loc[mask, 'sign_session'] = 1
+    # df_glm = df_glm[df_glm['sign_session'] == 1]
+
+    #prepare the switch regressor
+    df_glm['choice_1'] = df_glm['choice'].shift(1)
+    df_glm.loc[(df_glm['choice'] == df_glm['choice_1']), 'switch_num'] = 0
+    df_glm.loc[(df_glm['choice'] != df_glm['choice_1']), 'switch_num'] = 1
+
+
+    # Last trial reward
+    df_glm['last_trial'] = df_glm['outcome_bool'].shift(1)
+
+    # build the regressors for previous trials
+    rss_plus = ''
+    rss_minus = ''
+    rds_plus = ''
+    n = 5 #trials_back 
+    for i in range(2, n + 1):
+        df_glm[f'choice_{i}'] = df_glm['choice'].shift(i)
+        df_glm[f'outcome_bool_{i}'] = df_glm['outcome_bool'].shift(i)
+        
+        #prepare the data for the error_switch regressor rss_-
+        df_glm.loc[(df_glm[f'choice_{i}'] == df_glm['choice_1']) & (df_glm[f'outcome_bool_{i}'] == 0), f'rss_minus{i}'] = 1
+        df_glm.loc[(df_glm[f'choice_{i}'] == df_glm['choice_1']) & (df_glm[f'outcome_bool_{i}'] == 1), f'rss_minus{i}'] = 0
+        df_glm.loc[df_glm[f'choice_{i}'] != df_glm['choice_1'], f'rss_minus{i}'] = 0
+        df_glm[f'rss_minus{i}'] = pd.to_numeric(df_glm[f'rss_minus{i}'], errors='coerce')
+        #prepare the data for the error_switch regressor rss_-
+        df_glm.loc[(df_glm[f'choice_{i}'] == df_glm['choice_1']) & (df_glm[f'outcome_bool_{i}'] == 1), f'rss_plus{i}'] = 1
+        df_glm.loc[(df_glm[f'choice_{i}'] == df_glm['choice_1']) & (df_glm[f'outcome_bool_{i}'] == 0), f'rss_plus{i}'] = 0
+        df_glm.loc[df_glm[f'choice_{i}'] != df_glm['choice_1'], f'rss_plus{i}'] = 0
+        df_glm[f'rss_plus{i}'] = pd.to_numeric(df_glm[f'rss_plus{i}'], errors='coerce')
+        rss_plus += f'rss_plus{i} + '
+        rss_minus += f'rss_minus{i} + '
+
+        #prepare the data for the error_switch regressor rds_+
+        df_glm.loc[(df_glm[f'choice_{i}'] != df_glm['choice_1']) & (df_glm[f'outcome_bool_{i}'] == 1), f'rds_plus{i}'] = 1
+        df_glm.loc[(df_glm[f'choice_{i}'] != df_glm['choice_1']) & (df_glm[f'outcome_bool_{i}'] == 0), f'rds_plus{i}'] = 0
+        df_glm.loc[df_glm[f'choice_{i}'] == df_glm['choice_1'], f'rds_plus{i}'] = 0
+        df_glm[f'rss_plus{i}'] = pd.to_numeric(df_glm[f'rss_plus{i}'], errors='coerce')
+        rds_plus += f'rds_plus{i} + '
+    regressors_string = rss_plus + rss_minus + rds_plus + 'last_trial'
+    df_glm = df_glm.copy()
+
+    return df_glm, regressors_string
+
+def plot_GLM_prob_switch(ax, GLM_df, alpha=1):
+    orders = np.arange(len(GLM_df))
+
+    # filter the DataFrame to separate the coefficients
+    rss_plus = GLM_df.loc[GLM_df.index.str.contains('rss_plus'), "coefficient"]
+    rss_minus = GLM_df.loc[GLM_df.index.str.contains('rss_minus'), "coefficient"]
+    rds_plus = GLM_df.loc[GLM_df.index.str.contains('rds_plus'), "coefficient"]
+    last_trial = GLM_df.loc[GLM_df.index.str.contains('last_trial'), "coefficient"]
+    # intercept = GLM_df.loc['Intercept', "coefficient"]
+    ax.plot(orders[:len(rss_plus)], rss_plus, marker='o', color='indianred', alpha=alpha)
+    ax.plot(orders[:len(rss_minus)], rss_minus, marker='o', color='teal', alpha=alpha)
+    ax.plot(orders[:len(rds_plus)], rds_plus, marker='o', color='red', alpha=alpha)
+    ax.plot(orders[:len(last_trial)], last_trial, marker='o', color='green', alpha=alpha)
+
+    # Create custom legend handles with labels and corresponding colors
+    legend_handles = [
+        mpatches.Patch(color='indianred', label='rss+'),
+        mpatches.Patch(color='teal', label='rss-'),
+        mpatches.Patch(color='red', label='rds+'),
+        mpatches.Patch(color='green', label='last_trial')
+    ]
+
+    # Add legend with custom handles
+    ax.legend(handles=legend_handles)
+    # ax.axhline(y=intercept, label='Intercept', color='black')
+    ax.axhline(y=0, color='gray', linestyle='--')
+
+    ax.set_ylabel('GLM weight')
+    ax.set_xlabel('Previous trials')
+
+def glm_switch_analysis(data,seed,mean_perf):
+    perf_threshold = 0.5
+    if mean_perf < perf_threshold:  
+        print(f'Performance of network {seed} below threshold: {mean_perf}')
+    else:
+        print(f'Performance of network {seed} above threshold: {mean_perf}')
+        
+        # Prepare data for GLM analysis
+        df = ft.dict2df(data)
+        df_glm, regressors_string = GLM_regressors_switch(df)
+        regressor_list = [x.strip() for x in regressors_string.split(' + ')] + ['switch_num']
+        # Create subset DataFrame with only these regressors
+        df_vif = df_glm[regressor_list].copy()
+        print(calculate_vif(df_vif))
+        
+        try:
+            # Fit GLM model
+            #mM_logit = smf.logit(formula='choice ~ ' + regressors_string,data=df_glm).fit()
+            #adding regularitzation
+            mM_logit = smf.logit(formula='switch_num ~ ' + regressors_string,data=df_glm).fit()
+
+            
+            # Create results dataframe
+            GLM_df = pd.DataFrame({
+                'coefficient': mM_logit.params,
+                'std_err': mM_logit.bse,
+                'z_value': mM_logit.tvalues,
+                'p_value': mM_logit.pvalues,
+                'conf_Interval_Low': mM_logit.conf_int()[0],
+                'conf_Interval_High': mM_logit.conf_int()[1]
+            })
+        except Exception as e:
+            print(f"Error fitting GLM for {seed}: {e}")
+        return GLM_df
