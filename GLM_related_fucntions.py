@@ -50,7 +50,56 @@ def calculate_vif(df_glm):
     
     return vif_data
 
-def GLM_regressors_prob_r(df):
+
+def psychometric(x):
+    y = np.exp(-x)
+    return 1/(1 + y)
+
+def psychometric_plot(ax,df_glm_mice, data_label):
+    n_bins = 10
+    #equiespaced bins
+    bins = np.linspace(df_glm_mice['evidence'].min(), df_glm_mice['evidence'].max(), n_bins)
+    df_glm_mice['binned_ev'] = pd.cut(df_glm_mice['evidence'], bins=bins)
+    #equipopulated bins
+    #df_glm_mice['binned_ev'] = pd.qcut(df_glm_mice['evidence'], n_bins,duplicates='drop')
+    #bin_counts = df_glm_mice['binned_ev'].value_counts().sort_index()
+    #print histograms
+    histogram = 0
+    if histogram:
+        bin_counts = df_glm_mice['binned_ev'].value_counts().sort_index()
+        plt.figure(figsize=(10, 6))
+        bin_counts.plot(kind='bar', width=0.8, color='skyblue', edgecolor='black')
+        plt.title('Histogram of Elements in Each Bin', fontsize=16)
+        plt.xlabel('Bin Interval', fontsize=14)
+        plt.ylabel('Number of Elements', fontsize=14)
+        plt.xticks(rotation=45, ha='right')
+        plt.tight_layout()
+        plt.show()
+    grouped = df_glm_mice.groupby('binned_ev').agg(
+    ev_mean=('evidence', 'mean'),
+    p_right_mean=(data_label, 'mean')
+    ).dropna()
+    ev_means = grouped['ev_mean'].values
+    p_right_mean = grouped['p_right_mean'].values
+    #print(ev_means)
+    #print(p_right_mean)
+    ax.plot(ev_means,psychometric(ev_means), label = 'GLM Model', color = 'grey')
+    ax.plot(ev_means, p_right_mean, marker = 'o', label = 'Data', color = 'black')
+
+
+
+def psychometric_data(ax,df_glm_mice, GLM_df,regressors_string,data_label):
+    #we will first compute the evidence:
+    regressors_vect = regressors_string.split(' + ')
+    coefficients = GLM_df['coefficient']
+    df_glm_mice['evidence'] = coefficients['Intercept']
+    for j in range(len(regressors_vect)):
+        df_glm_mice['evidence']+= coefficients[regressors_vect[j]]*df_glm_mice[regressors_vect[j]]
+    #psychometric_fit(ax,df_glm_mice)
+    psychometric_plot(ax,df_glm_mice,data_label)
+    
+
+def GLM_regressors_prob_r(df,n_regressors):
     # Prepare df columns
     # Converting the 'outcome' column to boolean values
     select_columns = ['reward', 'actions', 'iti','prob_r']
@@ -74,10 +123,9 @@ def GLM_regressors_prob_r(df):
     df_glm['r_minus'] = pd.to_numeric(df_glm['r_minus'], errors='coerce')
 
     # Creating columns for previous trial results
-    max_shift = 10
     regr_plus = ''
     regr_minus = ''
-    for i in range(1, max_shift):
+    for i in range(1, n_regressors):
         df_glm[f'r_plus_{i}'] = df_glm['r_plus'].shift(i)
         df_glm[f'r_minus_{i}'] = df_glm['r_minus'].shift(i)
         regr_plus += f'r_plus_{i} + '
@@ -91,8 +139,8 @@ def plot_GLM_prob_r(ax, GLM_df, alpha=1):
     orders = np.arange(len(GLM_df))
 
     # filter the DataFrame to separate the coefficients
-    r_plus = GLM_df.loc[GLM_df.index.str.startswith('r_plus'), "coefficient"]
-    r_minus = GLM_df.loc[GLM_df.index.str.startswith('r_minus'), "coefficient"]
+    r_plus = GLM_df.loc[GLM_df['regressor'].str.contains('r_plus'), 'coefficient']
+    r_minus = GLM_df.loc[GLM_df['regressor'].str.contains('r_minus'), 'coefficient']
     # intercept = GLM_df.loc['Intercept', "coefficient"]
     ax.plot(orders[:len(r_plus)], r_plus, marker='.', color='indianred', alpha=alpha)
     ax.plot(orders[:len(r_minus)], r_minus, marker='.', color='teal', alpha=alpha)
@@ -111,43 +159,29 @@ def plot_GLM_prob_r(ax, GLM_df, alpha=1):
     ax.set_ylabel('GLM weight')
     ax.set_xlabel('Previous trials')
 
-def glm_prob_r_analysis(data,seed,mean_perf):
-    perf_threshold = 0.5
-    if mean_perf < perf_threshold:  
-        print(f'Performance of network {seed} below threshold: {mean_perf}')
-    else:
-        print(f'Performance of network {seed} above threshold: {mean_perf}')
-        
-        # Prepare data for GLM analysis
-        df = ft.dict2df(data)
-        df_glm, regressors_string = GLM_regressors_prob_r(df)
-        regressor_list = [x.strip() for x in regressors_string.split(' + ')] + ['choice']
-        # Create subset DataFrame with only these regressors
-        df_vif = df_glm[regressor_list].copy()
-        print(calculate_vif(df_vif))
-        
-        try:
-            # Fit GLM model
-            #mM_logit = smf.logit(formula='choice ~ ' + regressors_string,data=df_glm).fit()
-            #adding regularitzation
-            mM_logit = smf.logit(formula='choice ~ ' + regressors_string,data=df_glm).fit()
+def glm_prob_r_analysis(df,seed,n_regressors):        
+    # Prepare data for GLM analysis
+    df_glm, regressors_string = GLM_regressors_prob_r(df,n_regressors)
+    regressor_list = [x.strip() for x in regressors_string.split(' + ')] + ['choice']
+    # Create subset DataFrame with only these regressors
+    df_vif = df_glm[regressor_list].copy()
+    print(calculate_vif(df_vif))
+    mM_logit = smf.logit(formula='choice ~ ' + regressors_string,data=df_glm).fit()
 
-            
-            # Create results dataframe
-            GLM_df = pd.DataFrame({
-                'coefficient': mM_logit.params,
-                'std_err': mM_logit.bse,
-                'z_value': mM_logit.tvalues,
-                'p_value': mM_logit.pvalues,
-                'conf_Interval_Low': mM_logit.conf_int()[0],
-                'conf_Interval_High': mM_logit.conf_int()[1]
-            })
-        except Exception as e:
-            print(f"Error fitting GLM for {seed}: {e}")
-        return GLM_df
+    
+    # Create results dataframe
+    GLM_df = pd.DataFrame({
+        'coefficient': mM_logit.params,
+        'std_err': mM_logit.bse,
+        'z_value': mM_logit.tvalues,
+        'p_value': mM_logit.pvalues,
+        'conf_Interval_Low': mM_logit.conf_int()[0],
+        'conf_Interval_High': mM_logit.conf_int()[1]
+    })
+    return GLM_df,regressors_string,df_glm
         
 
-def GLM_regressors_switch(df):
+def GLM_regressors_switch(df,n_regressors):
     """
     Summary:
     This function processes the data needed to obtain the regressors and derives the 
@@ -190,8 +224,7 @@ def GLM_regressors_switch(df):
     rss_plus = ''
     rss_minus = ''
     rds_plus = ''
-    n = 5 #trials_back 
-    for i in range(2, n + 1):
+    for i in range(2, n_regressors + 1):
         df_glm[f'choice_{i}'] = df_glm['choice'].shift(i)
         df_glm[f'outcome_bool_{i}'] = df_glm['outcome_bool'].shift(i)
         
@@ -223,10 +256,10 @@ def plot_GLM_prob_switch(ax, GLM_df, alpha=1):
     orders = np.arange(len(GLM_df))
 
     # filter the DataFrame to separate the coefficients
-    rss_plus = GLM_df.loc[GLM_df.index.str.contains('rss_plus'), "coefficient"]
-    rss_minus = GLM_df.loc[GLM_df.index.str.contains('rss_minus'), "coefficient"]
-    rds_plus = GLM_df.loc[GLM_df.index.str.contains('rds_plus'), "coefficient"]
-    last_trial = GLM_df.loc[GLM_df.index.str.contains('last_trial'), "coefficient"]
+    rss_plus = GLM_df.loc[GLM_df['regressor'].str.contains('rss_plus'), 'coefficient']
+    rss_minus = GLM_df.loc[GLM_df['regressor'].str.contains('rss_minus'), 'coefficient']
+    rds_plus = GLM_df.loc[GLM_df['regressor'].str.contains('rds_plus'), 'coefficient']
+    last_trial = GLM_df.loc[GLM_df['regressor'].str.contains('last_trial'), 'coefficient']
     # intercept = GLM_df.loc['Intercept', "coefficient"]
     ax.plot(orders[:len(rss_plus)], rss_plus, marker='o', color='indianred', alpha=alpha)
     ax.plot(orders[:len(rss_minus)], rss_minus, marker='o', color='teal', alpha=alpha)
@@ -248,38 +281,68 @@ def plot_GLM_prob_switch(ax, GLM_df, alpha=1):
 
     ax.set_ylabel('GLM weight')
     ax.set_xlabel('Previous trials')
+def psychometric_plot(ax,df_glm_mice, data_label):
+    n_bins = 10
+    #equiespaced bins
+    bins = np.linspace(df_glm_mice['evidence'].min(), df_glm_mice['evidence'].max(), n_bins)
+    df_glm_mice['binned_ev'] = pd.cut(df_glm_mice['evidence'], bins=bins)
+    #equipopulated bins
+    #df_glm_mice['binned_ev'] = pd.qcut(df_glm_mice['evidence'], n_bins,duplicates='drop')
+    #bin_counts = df_glm_mice['binned_ev'].value_counts().sort_index()
+    #print histograms
+    histogram = 1
+    if histogram:
+        bin_counts = df_glm_mice['binned_ev'].value_counts().sort_index()
+        plt.figure(figsize=(10, 6))
+        bin_counts.plot(kind='bar', width=0.8, color='skyblue', edgecolor='black')
+        plt.title('Histogram of Elements in Each Bin', fontsize=16)
+        plt.xlabel('Bin Interval', fontsize=14)
+        plt.ylabel('Number of Elements', fontsize=14)
+        plt.xticks(rotation=45, ha='right')
+        plt.tight_layout()
+        plt.show()
+    grouped = df_glm_mice.groupby('binned_ev').agg(
+    ev_mean=('evidence', 'mean'),
+    p_right_mean=(data_label, 'mean')
+    ).dropna()
+    ev_means = grouped['ev_mean'].values
+    p_right_mean = grouped['p_right_mean'].values
+    #print(ev_means)
+    #print(p_right_mean)
+    ax.plot(ev_means,psychometric(ev_means), label = 'GLM Model', color = 'grey')
+    ax.plot(ev_means, p_right_mean, marker = 'o', label = 'Data', color = 'black')
 
-def glm_switch_analysis(data,seed,mean_perf):
-    perf_threshold = 0.1
-    if mean_perf < perf_threshold:  
-        print(f'Performance of network {seed} below threshold: {mean_perf}')
-    else:
-        print(f'Performance of network {seed} above threshold: {mean_perf}')
-        
-        # Prepare data for GLM analysis
-        df = ft.dict2df(data)
-        df_glm, regressors_string = GLM_regressors_switch(df)
-        regressor_list = [x.strip() for x in regressors_string.split(' + ')] + ['switch_num']
-        # Create subset DataFrame with only these regressors
-        df_vif = df_glm[regressor_list].copy()
-        print(calculate_vif(df_vif))
-        
-        try:
-            # Fit GLM model
-            #mM_logit = smf.logit(formula='choice ~ ' + regressors_string,data=df_glm).fit()
-            #adding regularitzation
-            mM_logit = smf.logit(formula='switch_num ~ ' + regressors_string,data=df_glm).fit()
 
-            
-            # Create results dataframe
-            GLM_df = pd.DataFrame({
-                'coefficient': mM_logit.params,
-                'std_err': mM_logit.bse,
-                'z_value': mM_logit.tvalues,
-                'p_value': mM_logit.pvalues,
-                'conf_Interval_Low': mM_logit.conf_int()[0],
-                'conf_Interval_High': mM_logit.conf_int()[1]
-            })
-        except Exception as e:
-            print(f"Error fitting GLM for {seed}: {e}")
-        return GLM_df
+
+def psychometric_data(ax,df_glm_mice, GLM_df,regressors_string,data_label):
+    #we will first compute the evidence:
+    regressors_vect = regressors_string.split(' + ')
+    GLM_df = GLM_df.copy()
+    GLM_df = GLM_df.reset_index(drop=True)
+    coefficients = GLM_df['coefficient']
+    df_glm_mice['evidence'] = GLM_df.loc[GLM_df['regressor'] == 'Intercept', 'coefficient'].values[0]
+    
+    for j in range(len(regressors_vect)):
+        df_glm_mice['evidence']+= coefficients[j+1]*df_glm_mice[regressors_vect[j]]
+    #psychometric_fit(ax,df_glm_mice)
+    psychometric_plot(ax,df_glm_mice,data_label)
+
+def glm_switch_analysis(df,seed,n_regressors):
+    df_glm, regressors_string = GLM_regressors_switch(df,n_regressors)
+    regressor_list = [x.strip() for x in regressors_string.split(' + ')] + ['switch_num']
+    # Create subset DataFrame with only these regressors
+    df_vif = df_glm[regressor_list].copy()
+    print(calculate_vif(df_vif))
+    mM_logit = smf.logit(formula='switch_num ~ ' + regressors_string,data=df_glm).fit()
+
+    
+    # Create results dataframe
+    GLM_df = pd.DataFrame({
+        'coefficient': mM_logit.params,
+        'std_err': mM_logit.bse,
+        'z_value': mM_logit.tvalues,
+        'p_value': mM_logit.pvalues,
+        'conf_Interval_Low': mM_logit.conf_int()[0],
+        'conf_Interval_High': mM_logit.conf_int()[1]
+    })
+    return GLM_df,regressors_string,df_glm

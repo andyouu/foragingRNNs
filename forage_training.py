@@ -338,13 +338,15 @@ def dict2df(data):
     actions = np.array(data['actions'])
     reward = np.array(data['rew_mat'])
     gt = np.array(data['gt'])
+    perf = np.array(data['perf'])
+    perf = perf[perf != -1]
     # keep only gt corresponding to choice
     indx = (gt != 0) & (gt != 1)
     actions = actions[indx]
     reward = reward[indx]
     gt = gt[indx]
     df = pd.DataFrame({'actions': actions, 'gt': gt, 'iti': data['iti'],
-                       'prob_r': data['prob_r'], 'reward': reward})
+                       'prob_r': data['prob_r'], 'reward': reward, 'perf' : perf})
     return df
 
 
@@ -823,7 +825,7 @@ if __name__ == '__main__':
     prob = 0.8
     #probs = np.array([[1-prob, prob], [prob, 1-prob]])
     #Vertechi
-    probs = [np.array([0.3, 0.7]), np.array([0.7, 0.3])]
+    probs = [np.array([0.4, 0.6]), np.array([0.6, 0.4])]
 
     # create folder to save data based on parameters
     save_folder = (f"{main_folder}{TASK}_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
