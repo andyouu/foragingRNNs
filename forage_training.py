@@ -181,7 +181,7 @@ def equalize_arrays(array_list):
     return padded_arrays
 
 #the net was set nto None here
-def run_agent_in_environment(num_steps_exp, env, net = None):
+def run_agent_in_environment(num_steps_exp, env, net = None, deterministic=False):
     """
     Run the agent in the environment for a specified number of steps.
 
@@ -227,9 +227,10 @@ def run_agent_in_environment(num_steps_exp, env, net = None):
             # Assuming `net` returns action probabilities
             action_probs = torch.nn.functional.softmax(action_probs, dim=2)
             # MAybe not get always the one with the mex probability but get them with the probabilities each actions actually have
-            # action = torch.multinomial(action_probs[0, 0], 1).item() (suggested by deepseek)
-            action = torch.argmax(action_probs[0, 0]).item()
-
+            if deterministic:
+                action = torch.argmax(action_probs[0, 0]).item()
+            else:
+                action = torch.multinomial(action_probs[0, 0], 1).item() #(suggested by deepseek)
         ob, rew, _, _, info = env.step(action)
 
         inputs.append(ob)

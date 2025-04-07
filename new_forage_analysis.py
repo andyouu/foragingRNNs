@@ -54,6 +54,52 @@ class Net(nn.Module):
         x = self.linear(out)
         return x, out
 
+def raster_plot(df):
+    # Compute probabilities
+    df['time'] = range(len(df))
+    
+    # Probability of action = 3 (right) with 5-trial rolling window
+    
+    # Reward probability
+    prob_reward = df['prob_r']
+    
+    # Create figure with primary and secondary axes
+    fig, ax1 = plt.subplots(figsize=(14, 7))
+    
+    # Plot probabilities on primary y-axis
+    ax1.plot(df['time'], prob_reward, 'b-', label='Reward Probability', linewidth=2)
+    ax1.set_xlabel('Time')
+    ax1.set_ylabel('Probability')
+    ax1.set_ylim(-0.1, 1.1)  # Give some padding for markers
+    
+    # Create secondary axis for action markers
+    ax2 = ax1.twinx()
+    ax2.set_ylim(-0.5, 1.5)
+    ax2.set_yticks([0, 1])
+    ax2.set_yticklabels(['Left (2)', 'Right (3)'])
+    ax2.set_ylabel('Action Choice', rotation=270, labelpad=15)
+    
+    # Plot action choices
+    for i, row in df.iterrows():
+        if row['actions'] in [2, 3]:
+            y_pos = 0 if row['actions'] == 2 else 1
+            if row['actions'] == row['gt']:
+                # Correct action - larger green circle
+                ax2.plot(row['time'], y_pos, 'go', markersize=8, alpha=0.7)
+            else:
+                # Incorrect action - smaller red x
+                ax2.plot(row['time'], y_pos, 'rx', markersize=6, alpha=0.7)
+            if row['reward'] == 1:
+                #Indicate the side where the reward was?
+                ax2.plot(row['time'], y_pos, 'g.', markersize=6, alpha=0.7)
+    
+    # Combine legends from both axes
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    ax1.legend(lines1, labels1, loc='upper left')
+    
+    plt.title('Action Selection Probability and Choices Over Time')
+    plt.tight_layout()
+    plt.show()
 
 def data_creation(data_dir,load_folder, num_steps_exp, verbose, probs_task):
     """
@@ -125,10 +171,14 @@ def data_creation(data_dir,load_folder, num_steps_exp, verbose, probs_task):
                 
                 # Run agent in environment
                 with torch.no_grad():
-                    data = ft.run_agent_in_environment(num_steps_exp=num_steps_exp, env=env, net=net)
+                    #set this parametert to True to always choose the action with highest probability and to False to sample the actions with probability
+                    deterministic = False
+                    data = ft.run_agent_in_environment(num_steps_exp=num_steps_exp, env=env, net=net, deterministic = deterministic)
 
-                if verbose and seed == "570976":
-                    ft.plot_task(env_kwargs=env_kwargs, data=data, num_steps=2000, save_folder=None)
+                if verbose:
+                    df_raster = ft.dict2df(data)
+                    raster_plot(df_raster[:300])
+                    ft.plot_task(env_kwargs=env_kwargs, data=data, num_steps=100, save_folder=None)
                     plt.show()
                 
                 df = ft.dict2df(data)
@@ -257,7 +307,6 @@ def plotting_w(model,glm_dir, data_dir, n_regressors):
         sns.stripplot(x='regressor', y='coefficient', data=df, color='black', alpha=0.6, jitter=True)
         plt.show()
 
-
     elif model == 'glm_prob_switch':
         plt.figure(figsize=(12, 6))
         regressor_list = [x.strip() for x in regressors_string.split(' + ')]
@@ -325,7 +374,10 @@ def plotting_perf(data_dir):
             mask = (data_s['prob_r'] == blk)[:len(perf)]
             perf_cond = perf[mask]
             mean_perf_cond = np.mean(perf_cond) if len(perf_cond) > 0 else np.nan 
-            subject_perf[blk] = mean_perf_cond
+            if blk > 0.5:
+                subject_perf[blk] = mean_perf_cond
+            else:
+                subject_perf[blk] = 1 - mean_perf_cond
             
             print(f'block: {blk}')
             print(f'mean performance: {mean_perf_cond}')
@@ -335,18 +387,18 @@ def plotting_perf(data_dir):
     perf_df = pd.DataFrame(all_perf_by_block)
     perf_df['subject'] = subjects
     perf_melted = pd.melt(perf_df, id_vars=['subject'], 
-                            var_name='block_prob', value_name='performance')
+                            var_name='block_prob', value_name='prob_r')
     
-    # Plot block performance
-    sns.boxplot(x='block_prob', y='performance', data=perf_melted, color='lightgreen')
-    sns.stripplot(x='block_prob', y='performance', data=perf_melted, color='black', alpha=0.5)
+    # Plot block prob_r
+    sns.boxplot(x='block_prob', y='prob_r', data=perf_melted, color='lightgreen')
+    sns.stripplot(x='block_prob', y='prob_r', data=perf_melted, color='black', alpha=0.5)
     
     # Add chance level line
     plt.axhline(0.5, color='red', linestyle='--', alpha=0.5, label='Chance')
     
-    plt.title('Performance Across Probability Blocks')
-    plt.xlabel('Block Probability (Right)')
-    plt.ylabel('Performance')
+    plt.title('Average probability right Across Probability Blocks')
+    plt.xlabel('Block Probability of reward(Right)')
+    plt.ylabel('Average probability of going right')
     plt.legend()
     plt.tight_layout()
     plt.show()
@@ -378,7 +430,7 @@ if __name__ == '__main__':
     probs_task = []
     for i in range(100):
         if(i%2 == 0):
-            j = np.random.randint(0, 3)
+            j = np.random.randint(0, 4)
             probs_task.append(blocks[j])
         else: 
             j = np.random.randint(4, 8)
@@ -398,10 +450,10 @@ if __name__ == '__main__':
     data_dir = os.path.join(folder, f'analysis_data_{model}')
 
     #Control
-    Redo_data = 0
-    Redo_glm = 0
+    Redo_data = 1
+    Redo_glm = 1
     Plot_weights = 1
-    Plot_performance = 0
+    Plot_performance = 1
 
     if Redo_data or not os.path.exists(data_dir):
         if not os.path.exists(data_dir):

@@ -290,7 +290,7 @@ def psychometric_plot(ax,df_glm_mice, data_label):
     #df_glm_mice['binned_ev'] = pd.qcut(df_glm_mice['evidence'], n_bins,duplicates='drop')
     #bin_counts = df_glm_mice['binned_ev'].value_counts().sort_index()
     #print histograms
-    histogram = 1
+    histogram = 0
     if histogram:
         bin_counts = df_glm_mice['binned_ev'].value_counts().sort_index()
         plt.figure(figsize=(10, 6))
