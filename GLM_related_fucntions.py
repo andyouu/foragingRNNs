@@ -5,6 +5,10 @@ import matplotlib.patches as mpatches
 import sys
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 import statsmodels.formula.api as smf
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score, f1_score,
+    roc_auc_score, brier_score_loss, confusion_matrix
+)
 
 
 
@@ -178,7 +182,45 @@ def glm_prob_r_analysis(df,seed,n_regressors):
         'conf_Interval_Low': mM_logit.conf_int()[0],
         'conf_Interval_High': mM_logit.conf_int()[1]
     })
-    return GLM_df,regressors_string,df_glm
+    #Create a DataFrame with the avaluation metrics
+    y_true = df_glm['choice'][n_regressors:]   # True binary outcomes
+    y_pred_prob = mM_logit.predict(df_glm)[n_regressors:]  # Predicted probabilities (change this tot the test set)
+    y_pred_class = (y_pred_prob >= 0.5).astype(int)
+    np.random.seed(42) 
+    y_pred_class_mult = (np.random.rand(len(y_pred_prob)) < y_pred_prob).astype(int) # We may use the multinomial here to choose with probability (sampling)
+
+    metrics_dict = {
+        # Log-likelihood
+        "log_likelihood": mM_logit.llf,
+        "log_likelihood_per_obs": mM_logit.llf / len(y_true),
+        
+        # Information criteria
+        "AIC": mM_logit.aic,
+        "BIC": mM_logit.bic,
+        
+        # Pseudo R-squared
+        "pseudo_r2_mcfadden": mM_logit.prsquared,  # McFadden's pseudo R²
+        "pseudo_r2_cox_snell": 1 - np.exp(-2 * (mM_logit.llf - mM_logit.llnull) / len(y_true)),  # Cox-Snell
+        "pseudo_r2_nagelkerke": (1 - np.exp(-2 * (mM_logit.llf - mM_logit.llnull) / len(y_true))) / 
+                            (1 - np.exp(2 * mM_logit.llnull / len(y_true))),  # Nagelkerke
+        
+        # Classification metrics (threshold=0.5)
+        "accuracy": accuracy_score(y_true, y_pred_class),
+        "precision": precision_score(y_true, y_pred_class),
+        "recall": recall_score(y_true, y_pred_class),
+        "f1_score": f1_score(y_true, y_pred_class),
+        "accuracy_bis": accuracy_score(y_true, y_pred_class_mult),
+        "precision_bis": precision_score(y_true, y_pred_class_mult),
+        "recall_bis": recall_score(y_true, y_pred_class_mult),
+        "f1_score_bis": f1_score(y_true, y_pred_class_mult),
+        
+        # Probability-based metrics
+        "roc_auc": roc_auc_score(y_true, y_pred_prob),
+        "brier_score": brier_score_loss(y_true, y_pred_prob),
+    }
+    GLM_metrics = pd.DataFrame([metrics_dict]) 
+    return GLM_df,regressors_string,df_glm, GLM_metrics
+
         
 
 def GLM_regressors_switch(df,n_regressors):
@@ -219,7 +261,6 @@ def GLM_regressors_switch(df,n_regressors):
 
     # Last trial reward
     df_glm['last_trial'] = df_glm['outcome_bool'].shift(1)
-
     # build the regressors for previous trials
     rss_plus = ''
     rss_minus = ''
@@ -333,9 +374,9 @@ def glm_switch_analysis(df,seed,n_regressors):
     # Create subset DataFrame with only these regressors
     df_vif = df_glm[regressor_list].copy()
     print(calculate_vif(df_vif))
-    mM_logit = smf.logit(formula='switch_num ~ ' + regressors_string,data=df_glm).fit()
 
-    
+    #TODO: Implement cross-validation (create a train and test set)
+    mM_logit = smf.logit(formula='switch_num ~ ' + regressors_string,data=df_glm).fit()    
     # Create results dataframe
     GLM_df = pd.DataFrame({
         'coefficient': mM_logit.params,
@@ -345,4 +386,41 @@ def glm_switch_analysis(df,seed,n_regressors):
         'conf_Interval_Low': mM_logit.conf_int()[0],
         'conf_Interval_High': mM_logit.conf_int()[1]
     })
-    return GLM_df,regressors_string,df_glm
+
+    #Create a DataFrame with the avaluation metrics
+    y_true = df_glm['switch_num'][n_regressors:]   # True binary outcomes
+    y_pred_prob = mM_logit.predict(df_glm)[n_regressors:]  # Predicted probabilities (change this tot the test set)
+    y_pred_class = (y_pred_prob >= 0.5).astype(int)
+    np.random.seed(42) 
+    y_pred_class_mult = (np.random.rand(len(y_pred_prob)) < y_pred_prob).astype(int) # We may use the multinomial here to choose with probability (sampling)
+    metrics_dict = {
+        # Log-likelihood
+        "log_likelihood": mM_logit.llf,
+        "log_likelihood_per_obs": mM_logit.llf / len(y_true),
+        
+        # Information criteria
+        "AIC": mM_logit.aic,
+        "BIC": mM_logit.bic,
+        
+        # Pseudo R-squared
+        "pseudo_r2_mcfadden": mM_logit.prsquared,  # McFadden's pseudo R²
+        "pseudo_r2_cox_snell": 1 - np.exp(-2 * (mM_logit.llf - mM_logit.llnull) / len(y_true)),  # Cox-Snell
+        "pseudo_r2_nagelkerke": (1 - np.exp(-2 * (mM_logit.llf - mM_logit.llnull) / len(y_true))) / 
+                            (1 - np.exp(2 * mM_logit.llnull / len(y_true))),  # Nagelkerke
+        
+        # Classification metrics (threshold=0.5)
+        "accuracy": accuracy_score(y_true, y_pred_class),
+        "precision": precision_score(y_true, y_pred_class),
+        "recall": recall_score(y_true, y_pred_class),
+        "f1_score": f1_score(y_true, y_pred_class),
+        "accuracy_bis": accuracy_score(y_true, y_pred_class_mult),
+        "precision_bis": precision_score(y_true, y_pred_class_mult),
+        "recall_bis": recall_score(y_true, y_pred_class_mult),
+        "f1_score_bis": f1_score(y_true, y_pred_class_mult),
+        
+        # Probability-based metrics
+        "roc_auc": roc_auc_score(y_true, y_pred_prob),
+        "brier_score": brier_score_loss(y_true, y_pred_prob),
+    }
+    GLM_metrics = pd.DataFrame([metrics_dict]) 
+    return GLM_df,regressors_string,df_glm, GLM_metrics

@@ -193,37 +193,43 @@ def weights_computation(model, data_dir, glm_dir, n_regressors):
     df = pd.read_csv(data_dir, sep=',', low_memory=False)
     combined_glm_file = os.path.join(glm_dir, 'all_subjects_weights.csv')
     combined_glm_data = os.path.join(glm_dir, 'all_subjects_glm_regressors.csv')
+    combined_glm_metrics = os.path.join(glm_dir, 'all_subjects_glm_metrics.csv')
     all_glms = []
     all_datas_regressors = []
+    all_metrics = []
     subjects = np.unique(df['network_seed']) 
     n_subjects = len(subjects)
     mice_counter = 0
     for net in subjects:
         try:                                        
             if model == 'glm_prob_r':
-                GLM_df, regressors_string,df_regressors= glm_prob_r_analysis(df[df['network_seed'] == net], net,n_regressors)
+                GLM_df, regressors_string,df_regressors,df_metrics= glm_prob_r_analysis(df[df['network_seed'] == net], net,n_regressors)
                 df_glm = GLM_df.copy()
                 df_glm['seed'] = net
                 df_regressors['seed'] = net
+                df_metrics['seed'] = net
                 df_glm['regressors_string'] = regressors_string
                 #Set the indexes as a new column to facilitate the analysis
                 df_reset = df_glm.reset_index()
                 df_reset = df_reset.rename(columns={'index': 'regressor'})
                 all_glms.append(df_reset)
                 all_datas_regressors.append(df_regressors)
+                all_metrics.append(df_metrics)
                 
             
             elif model == 'glm_prob_switch':
-                GLM_df, regressors_string, df_regressors = glm_switch_analysis(df[df['network_seed'] == net],net,n_regressors)
+                GLM_df, regressors_string, df_regressors, df_metrics = glm_switch_analysis(df[df['network_seed'] == net],net,n_regressors)
                 df_glm = GLM_df.copy()
                 df_glm['seed'] = net
                 df_regressors['seed'] = net
+                df_metrics['seed'] = net
                 df_glm['regressors_string'] = regressors_string
                 #Set the indexes as a new column to facilitate the analysis
                 df_reset = df_glm.reset_index()
                 df_reset = df_reset.rename(columns={'index': 'regressor'})
                 all_glms.append(df_reset)
                 all_datas_regressors.append(df_regressors)
+                all_metrics.append(df_metrics)
 
             elif model == 'inference_based':
                 inference_plot(df[df['network_seed'] == net])
@@ -237,6 +243,8 @@ def weights_computation(model, data_dir, glm_dir, n_regressors):
         combined_glms.to_csv(combined_glm_file, index=False)
         combined_glms_reg = pd.concat(all_datas_regressors, ignore_index=True,axis=0)
         combined_glms_reg.to_csv(combined_glm_data, index=False)
+        combined_metrics = pd.concat(all_metrics,ignore_index=True,axis=0)
+        combined_metrics.to_csv(combined_glm_metrics, index=False)
 
 def plotting_w(model,glm_dir, data_dir, n_regressors):
     #read the data with the weights
@@ -425,7 +433,7 @@ if __name__ == '__main__':
     blocks = np.array([
     [0.2, 0.8],[0.3, 0.7],[0.1, 0.9],[0.4, 0.6],[0.8, 0.2], [0.7, 0.3],[0.9, 0.1],[0.6, 0.4]])
     #seeds 42 and 13 and 100
-    seed = 42
+    seed = 13
     np.random.seed(seed)
     probs_task = []
     for i in range(100):
@@ -437,7 +445,7 @@ if __name__ == '__main__':
             probs_task.append(blocks[j])
 
     print("Selected blocks:", probs_task)
-    probs_net = np.array([[0.4, 0.6],[0.6, 0.4]])
+    probs_net = np.array([[0, 0.9],[0.9, 0]])
     # to avaluate on the same enviroment than the training
     #probs_task = [np.array([0.3, 0.7]), np.array([0.7, 0.3])]
     #env.reset()
@@ -446,11 +454,11 @@ if __name__ == '__main__':
                     f"d{dec_dur}_prb{probs_net[0][0]}{probs_net[0][1]}")
     redo = True
     # Check if analysis_results.pkl exists in the main folder
-    model = 'glm_prob_r'
+    model = 'glm_prob_switch'
     data_dir = os.path.join(folder, f'analysis_data_{model}')
 
     #Control
-    Redo_data = 1
+    Redo_data = 0
     Redo_glm = 1
     Plot_weights = 1
     Plot_performance = 1
