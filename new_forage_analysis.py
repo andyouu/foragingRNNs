@@ -13,6 +13,7 @@ import seaborn as sns
 from scipy.optimize import curve_fit
 import neurogym as ngym
 import statsmodels.formula.api as smf
+from matplotlib.lines import Line2D
 
 
 from neurogym.wrappers import pass_reward, pass_action, side_bias
@@ -410,6 +411,121 @@ def plotting_perf(data_dir):
     plt.legend()
     plt.tight_layout()
     plt.show()
+
+def plot_switching_evidence_summary_v4(data_dir,model):
+    df = pd.read_csv(data_dir, sep=',', low_memory=False)
+    subjects = np.unique(df['seed'])
+    # Create figure layouts for results
+    
+    for mice_counter, seed in enumerate(subjects):
+        df_s = df[df['seed']== seed]
+        if model == 'glm_prob_switch':
+            y_true = df_s['switch_num']
+        elif model == 'glm_prob_r':
+            y_true = df_s['choice']
+        y_pred_prob = df_s['pred_prob'].dropna()
+
+        #get number of trials needed to compute the first predicted value
+
+        lag_trials = len(y_true) - len(y_pred_prob)
+        df_s = df_s.reset_index(drop=True)
+        filtered_df = df_s[lag_trials:].copy()
+        
+        #select windows of trials to avaluate
+        sessions = [np.array([20,70]), np.array([7000,7050]), np.array([1031,1112])]
+        for session in sessions:
+            session_data = filtered_df[session[0]:session[1]].copy()
+            session_data = session_data.reset_index(drop=True)
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(13, 6), sharex=True,
+                                            gridspec_kw={'height_ratios': [1.2, 1.2]})
+
+            prob_r_values = session_data['prob_r'].values
+            trials = np.arange(session[0],session[1])
+
+            block_starts = [0]
+            for i in range(1, len(prob_r_values)):
+                if prob_r_values[i] != prob_r_values[i - 1]:
+                    block_starts.append(i)
+            block_starts.append(len(prob_r_values))
+
+            for i in range(len(block_starts) - 1):
+                start_idx = block_starts[i]
+                end_idx = block_starts[i + 1]
+
+                start_trial = trials[start_idx] - 0.5
+                end_trial = trials[end_idx - 1] + 0.5
+                prob = prob_r_values[start_idx]
+                center_trial = (start_trial + end_trial) / 2
+
+                color = '#9c36b5' if prob < 0.5 else '#2b8a3e'
+                ax1.axvspan(start_trial, end_trial, ymin=0.72, ymax=0.78, color=color, alpha=0.7)
+                ax1.text(center_trial, 0.60, f'{1-prob:.2f}', color=color,
+                         fontsize=9, ha='center', va='top', fontweight='bold')
+            session_data['trial'] = trials
+            for _, row in session_data.iterrows():
+                trial = row['trial']
+                choice = row['choice']
+                outcome = row['outcome_bool']
+                if model == 'glm_prob_switch':
+                    switch_num = row['switch_num']
+                    
+                    color = '#40c057' if choice == 0 else '#ae3ec9'
+                    ypos = 0.0 if choice == 0 else 0.3
+                    length = 0.2 if outcome == 1 else 0.1
+                    ax1.vlines(trial, ypos, ypos + length, color=color, linewidth=1.2, alpha=0.85)
+                    if switch_num == 1:
+                        ax1.vlines(trial, -0.2, -0.3, color='black', linewidth=1.4)
+                elif model == 'glm_prob_r':                    
+                    color = '#40c057' if choice == 0 else '#ae3ec9'
+                    ypos = 0.0 if choice == 0 else 0.3
+                    length = 0.2 if outcome == 1 else 0.1
+                    ax1.vlines(trial, ypos, ypos + length, color=color, linewidth=1.2, alpha=0.85)
+            ax1.set_ylim(-0.4, 1.1)
+            ax1.set_yticks([])
+            ax1.set_title(f'Network {seed}, Session {session}', fontsize=12)
+            ax1.spines['right'].set_visible(False)
+            ax1.spines['top'].set_visible(False)
+
+            # === PROB SWITCH ===
+            ax2.plot(session_data['trial'], session_data['pred_prob'],
+                    color='black', linestyle='-', linewidth=1.8, alpha=0.9)
+
+            if(model == 'glm_prob_r'):
+                ax2.set_ylabel('Prob(Right)')
+                ax2.axhline(0.5, linestyle='--', color='red', linewidth=1)
+            elif model == 'glm_prob_switch':
+                ax2.set_ylabel('Prob(Switch)')
+            ax2.set_xlabel('Trial')
+            ax2.set_ylim(0, 1)
+            ax2.spines['right'].set_visible(False)
+            ax2.spines['top'].set_visible(False)
+            if model == 'glm_prob_switch':
+                switch_trials = session_data[session_data['switch_num'] == 1]['trial']
+
+                # Plot vertical lines on both subplots
+                for trial in switch_trials:                
+                    # Lower plot (probability)
+                    ax2.axvline(trial, color='#ff6b6b', linestyle=':', 
+                            linewidth=1.2, alpha=0.4)
+
+
+        # === LEGENDA comune ===
+            custom_lines = [
+                Line2D([0], [0], color='black', lw=2, label='Prob(Switch)'),
+                Line2D([0], [0], color='#9c36b5', lw=4, label='Reward Right'),
+                Line2D([0], [0], color='#2b8a3e', lw=4, label='Reward Left'),
+                Line2D([0], [0], color='#40c057', lw=3, label='Left choice'),
+                Line2D([0], [0], color='#ae3ec9', lw=3, label='Right choice'),
+                Line2D([0], [0], color='black', lw=2, label='Switch (tick)')
+            ]
+            fig.legend(handles=custom_lines, frameon=False, fontsize=9, loc='upper right')
+
+            fig.suptitle(f'Sessions Summary trials {session[0],session[1]})',
+                        fontsize=16, y=1.02)
+            plt.tight_layout()
+            plt.subplots_adjust(top=0.90, hspace=0.35)
+            plt.show()
+
     
 
 if __name__ == '__main__':
@@ -459,10 +575,10 @@ if __name__ == '__main__':
 
     #Control
     Redo_data = 0
-    Redo_glm = 1
-    Plot_weights = 1
-    Plot_performance = 1
-
+    Redo_glm = 0
+    Plot_weights = 0
+    Plot_performance = 0
+    Plot_raster = 1
     if Redo_data or not os.path.exists(data_dir):
         if not os.path.exists(data_dir):
             os.makedirs(data_dir)
@@ -487,11 +603,15 @@ if __name__ == '__main__':
 
     combined_glm_file = os.path.join(glm_dir, 'all_subjects_weights.csv')
     combined_glm_data = os.path.join(glm_dir, 'all_subjects_glm_regressors.csv')
+    combined_glm_metrics = os.path.join(glm_dir, 'all_subjects_glm_metrics.csv')
     if Plot_weights:
         plotting_w(model = model, glm_dir = combined_glm_file, data_dir=combined_glm_data, n_regressors = n_regressors)
 
     if Plot_performance:
         plotting_perf(data_dir = combined_data_file)
+    if Plot_raster:
+        plot_switching_evidence_summary_v4(data_dir = combined_glm_data, model = model)
+
     #general_analysis(model = model,load_folder=folder, num_steps_exp=100000, verbose=False, probs_task=probs_task)
         # TODO: move inside general_analysis
         #save_general_analysis_results(sv_folder=folder, seeds=seeds, mean_perf_list=mean_perf_list,

@@ -111,7 +111,8 @@ def GLM_regressors_prob_r(df,n_regressors):
     # subtract 2 from actions to get 0 for left and 1 for right
     df_glm['outcome_bool'] = df_glm['reward']
     df_glm['choice'] = df_glm['actions']-2
-    df_glm.loc[df_glm['choice']<0, 'choice'] = np.nan
+    #keep only the right-left actions
+    df_glm = df_glm[df_glm['choice'] >= 0]
 
     # calculate correct_choice regressor r_+
     df_glm.loc[df_glm['outcome_bool'] == 0, 'r_plus']  = 0
@@ -182,6 +183,7 @@ def glm_prob_r_analysis(df,seed,n_regressors):
         'conf_Interval_Low': mM_logit.conf_int()[0],
         'conf_Interval_High': mM_logit.conf_int()[1]
     })
+    df_glm['pred_prob'] = mM_logit.predict(df_glm)
     #Create a DataFrame with the avaluation metrics
     y_true = df_glm['choice'][n_regressors:]   # True binary outcomes
     y_pred_prob = mM_logit.predict(df_glm)[n_regressors:]  # Predicted probabilities (change this tot the test set)
@@ -237,12 +239,13 @@ def GLM_regressors_switch(df,n_regressors):
         new_df([Dataframe]): [dataframe with processed data restrcted to the regression]
         regressors_string([string]) :  [regressioon formula]
     """
-    select_columns = ['reward', 'actions', 'iti']
+    select_columns = ['reward', 'actions', 'iti', 'prob_r']
     df_glm = df.loc[:, select_columns].copy()
     # subtract 2 from actions to get 0 for left and 1 for right
     df_glm['outcome_bool'] = df_glm['reward']
     df_glm['choice'] = df_glm['actions']-2
-    df_glm.loc[df_glm['choice']<0, 'choice'] = np.nan
+    #keep only the right-left actions
+    df_glm = df_glm[df_glm['choice'] >= 0]
     # Select the columns needed for the regressors
     df_glm = df_glm.copy()
 
@@ -386,7 +389,7 @@ def glm_switch_analysis(df,seed,n_regressors):
         'conf_Interval_Low': mM_logit.conf_int()[0],
         'conf_Interval_High': mM_logit.conf_int()[1]
     })
-
+    df_glm['pred_prob'] = mM_logit.predict(df_glm)
     #Create a DataFrame with the avaluation metrics
     y_true = df_glm['switch_num'][n_regressors:]   # True binary outcomes
     y_pred_prob = mM_logit.predict(df_glm)[n_regressors:]  # Predicted probabilities (change this tot the test set)
@@ -396,7 +399,7 @@ def glm_switch_analysis(df,seed,n_regressors):
     metrics_dict = {
         # Log-likelihood
         "log_likelihood": mM_logit.llf,
-        "log_likelihood_per_obs": mM_logit.llf / len(y_true),
+        "log_likelihood_per_obs": mM_logit.llf / len(y_true),   
         
         # Information criteria
         "AIC": mM_logit.aic,
