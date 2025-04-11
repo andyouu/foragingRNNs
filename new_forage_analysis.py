@@ -457,9 +457,10 @@ def plot_switching_evidence_summary_v4(data_dir,model):
                 prob = prob_r_values[start_idx]
                 center_trial = (start_trial + end_trial) / 2
 
-                color = '#9c36b5' if prob < 0.5 else '#2b8a3e'
+                #beware of the probabilitites thing, we are plotting them contrarily to what de datas show
+                color = '#9c36b5' if prob > 0.5 else '#2b8a3e'
                 ax1.axvspan(start_trial, end_trial, ymin=0.72, ymax=0.78, color=color, alpha=0.7)
-                ax1.text(center_trial, 0.60, f'{1-prob:.2f}', color=color,
+                ax1.text(center_trial, 0.60, f'{prob:.2f}', color=color,
                          fontsize=9, ha='center', va='top', fontweight='bold')
             session_data['trial'] = trials
             for _, row in session_data.iterrows():
@@ -526,7 +527,78 @@ def plot_switching_evidence_summary_v4(data_dir,model):
             plt.subplots_adjust(top=0.90, hspace=0.35)
             plt.show()
 
-    
+def plot_combined_switch_analysis(data_dir, window=10, max_subjects=9):
+    df = pd.read_csv(data_dir, sep=',', low_memory=False)
+    subjects = np.unique(df['seed'])
+    n = len(subjects)
+    # Create figure layouts for results
+    n_cols = int(np.ceil(len(subjects) / 2))
+    df['fraction_of_correct_responses'] = np.where(
+            ((df['prob_r'] >= 0.5) & (df['choice'] == 1)) |
+            ((df['prob_r'] < 0.5) & (df['choice'] == 0)),
+            1, 0
+        )
+    fig, axs = plt.subplots(2, n_cols, figsize=(5*n_cols-1, 8), sharey=False)
+    axs = axs.flatten()
+
+    for i, subj in enumerate(subjects):
+        ax = axs[i]
+        subj_df = df[df['seed'] == subj].reset_index(drop=True)
+
+        # ----- Switch indices -----
+        switch_idx = subj_df.index[subj_df['switch_num'] == 1]
+        subject_mean = subj_df['fraction_of_correct_responses'].mean()
+
+        # ----- Switch-triggered outcome -----
+        aligned_outcome = []
+        aligned_switches = []
+
+        for idx in switch_idx:
+            if idx - window < 0 or idx + window >= len(subj_df):
+                continue
+
+            lags = np.arange(-window, window + 1)
+            outcome_vals = subj_df.iloc[idx - window:idx + window + 1]['fraction_of_correct_responses'].values
+            switch_vals = subj_df.iloc[idx - window:idx + window + 1]['switch_num'].values
+
+            for lag, o, s in zip(lags, outcome_vals, switch_vals):
+                aligned_outcome.append({'lag': lag, 'fraction_of_correct_responses': o})
+                aligned_switches.append({'lag': lag, 'switch': s})
+
+        # --- DF per outcome e switch ---
+        outcome_df = pd.DataFrame(aligned_outcome)
+        switch_df = pd.DataFrame(aligned_switches)
+
+        # --- Plot outcome curve ---
+        outcome_mean = outcome_df.groupby('lag')['fraction_of_correct_responses'].mean()
+        outcome_sem = outcome_df.groupby('lag')['fraction_of_correct_responses'].sem()
+        ax.errorbar(outcome_mean.index, outcome_mean.values, yerr=outcome_sem.values,
+                    fmt='o-', capsize=3, label='Outcome (mean ± SEM)', color='blue')
+
+        # --- Plot switch probability ---
+        switch_prob = switch_df.groupby('lag')['switch'].mean()
+        switch_sem = switch_df.groupby('lag')['switch'].sem()
+        ax.errorbar(switch_prob.index, switch_prob.values, yerr=switch_sem.values,
+                    fmt='o-', capsize=3, label='P(switch)', color='orange')
+
+        # --- Linee di riferimento ---
+        ax.axvline(0, linestyle='--', color='black', label='Switch')
+        ax.axhline(0.5, linestyle='--', color='gray', label='Chance')
+        ax.axhline(subject_mean, linestyle=':', color='green', label='Subject Mean')
+
+        ax.set_title(f'Subject {subj}')
+        ax.set_ylim(0, 1)
+        ax.set_ylabel('Probability / Outcome')
+        ax.set_xlabel('Trial lag')
+        ax.legend()
+
+    for j in range(n, len(axs)):
+        fig.delaxes(axs[j])  # Rimuove subplot vuoti
+
+    plt.suptitle('Switch-Triggered Analysis per Subject', fontsize=16)
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.show()
+
 
 if __name__ == '__main__':
 # define parameters configuration
@@ -579,6 +651,7 @@ if __name__ == '__main__':
     Plot_weights = 0
     Plot_performance = 0
     Plot_raster = 1
+    Trig_switch = 0
     if Redo_data or not os.path.exists(data_dir):
         if not os.path.exists(data_dir):
             os.makedirs(data_dir)
@@ -612,9 +685,5 @@ if __name__ == '__main__':
     if Plot_raster:
         plot_switching_evidence_summary_v4(data_dir = combined_glm_data, model = model)
 
-    #general_analysis(model = model,load_folder=folder, num_steps_exp=100000, verbose=False, probs_task=probs_task)
-        # TODO: move inside general_analysis
-        #save_general_analysis_results(sv_folder=folder, seeds=seeds, mean_perf_list=mean_perf_list,
-        #                            mean_perf_smooth_list=mean_perf_smooth_list, iti_bins=iti_bins, 
-        #                            mean_perf_iti=mean_perf_iti, GLM_coeffs=GLM_coeffs, net_nums=net_nums)
-    
+    if Trig_switch and model == 'glm_prob_switch':
+        plot_combined_switch_analysis(data_dir = combined_glm_data, window=10)

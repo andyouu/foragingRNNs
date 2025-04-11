@@ -243,8 +243,9 @@ def run_agent_in_environment(num_steps_exp, env, net = None, deterministic=False
         if info.get('new_trial', False):
             perf.append(info.get('performance', None))
             iti.append(np.sum(env.gt == 0))
-            prob_r.append(env.trial['probs'][0])
-            prob_l.append(env.trial['probs'][1])
+            #this was changed because it didn't fit with the actual probabilities used
+            prob_r.append(env.trial['probs'][1])
+            prob_l.append(env.trial['probs'][0])
         else:
             perf.append(-1)
 
