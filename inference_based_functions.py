@@ -6,6 +6,10 @@ import sys
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 import statsmodels.formula.api as smf
 from typing import Tuple
+from sklearn.metrics import accuracy_score
+from statsmodels.formula.api import probit as sm_probit
+
+
 from scipy.optimize import curve_fit
 
 
@@ -112,10 +116,10 @@ def manual_computation(df: pd.DataFrame, n_back: int) -> pd.DataFrame:
     # Create choice-reward combination codes:
     # First digit = choice (0=left, 1=right), second digit = reward (0=no, 1=yes)
     new_df['choice_1'] = new_df['choice'].shift(1)
-    new_df.loc[(new_df['outcome_bool'] == 0) & (new_df['choice_1'] == 0), 'choice_rwd'] = '00'
-    new_df.loc[(new_df['outcome_bool'] == 0) & (new_df['choice_1'] == 1), 'choice_rwd'] = '01'
-    new_df.loc[(new_df['outcome_bool'] == 1) & (new_df['choice_1'] == 0), 'choice_rwd'] = '10'
-    new_df.loc[(new_df['outcome_bool'] == 1) & (new_df['choice_1'] == 1), 'choice_rwd'] = '11'
+    new_df.loc[(new_df['outcome_bool'] == 0) & (new_df['choice'] == 0), 'choice_rwd'] = '00'
+    new_df.loc[(new_df['outcome_bool'] == 0) & (new_df['choice'] == 1), 'choice_rwd'] = '01'
+    new_df.loc[(new_df['outcome_bool'] == 1) & (new_df['choice'] == 0), 'choice_rwd'] = '10'
+    new_df.loc[(new_df['outcome_bool'] == 1) & (new_df['choice'] == 1), 'choice_rwd'] = '11'
     new_df['choice_rwd'] = new_df['choice_rwd'].fillna(' ')  # Fill missing with space
     
     # Clean data - remove rows with missing probability values
@@ -139,8 +143,10 @@ def manual_computation(df: pd.DataFrame, n_back: int) -> pd.DataFrame:
     new_df.loc[(new_df['prob_r'] < 0.5), 'left_active'] = 1
     
     # Shift active indicators to align with next trial's outcome
-    new_df['right_outcome'] = new_df['right_active'].shift(-1)
-    new_df['left_outcome'] = new_df['left_active'].shift(-1)
+    # new_df['right_outcome'] = new_df['right_active'].shift(-1)
+    # new_df['left_outcome'] = new_df['left_active'].shift(-1)
+    new_df['right_outcome'] = new_df['right_active']
+    new_df['left_outcome'] = new_df['left_active']
     
     # Calculate probability of right/left outcomes for each sequence pattern
     new_df['prob_right'] = new_df.groupby('sequence')['right_outcome'].transform('mean')
@@ -149,8 +155,9 @@ def manual_computation(df: pd.DataFrame, n_back: int) -> pd.DataFrame:
     # Compute value difference between right and left options
     new_df['V_t'] = (new_df['prob_right'] - new_df['prob_left'])
 
-    new_df.loc[(new_df['choice_1'] == 0), 'side_num'] = -1
-    new_df.loc[(new_df['choice_1'] == 1), 'side_num'] = 1
+    new_df = new_df.dropna(subset=['choice']).reset_index(drop=True)
+    new_df.loc[(new_df['choice'] == 0), 'side_num'] = -1
+    new_df.loc[(new_df['choice'] == 1), 'side_num'] = 1
     return new_df
 
 
@@ -193,9 +200,69 @@ def psychometric_fit(ax,df_glm_mice):
     ax.plot(ev_means_20, probit([ev_means_20,side_20], beta,alpha), color='green', label = 'Model', alpha = phi)
     #ax.plot(ev_means, psychometric(ev_means), color='grey', alpha = 0.5)
     ax.plot(ev_means_20, p_right_mean_20, marker = 'o', color = 'black',label = 'Data', alpha = phi)
-    phi -= 0.5
 
-def inference_plot(ax,df):
-    df_values_new = manual_computation(df,n_back=5)
+
+def metric_computation(df):
+    # Extract variables
+    ev_means = df['V_t']
+    side = df['side_num']
+    p_right_mean = df['choice']
+    true_choices = df['choice'].values  # Actual choices (0/1 or True/False)
+    
+    # Fit probit model
+    n_bins = 20
+    bins = np.linspace(df['V_t'].min(), df['V_t'].max(), n_bins)
+    df['binned_ev'] = pd.cut(df['V_t'], bins=bins)
+    grouped = df.groupby('binned_ev').agg(
+    ev_mean=('V_t', 'mean'),
+    side = ('side_num','mean'),
+    p_right_mean=('choice', 'mean'),
+    ).dropna() 
+    ev_means_g = grouped['ev_mean'].values
+    p_right_mean_g = grouped['p_right_mean'].values
+    side_g = grouped['side'].values
+    [beta, alpha],_ = curve_fit(probit, [ev_means_g,side_g], p_right_mean_g, p0=[0, 1])
+    #this cannot be fitted with all the data
+    #[beta, alpha], _ = curve_fit(probit, [ev_means, side], p_right_mean, p0=[0, 1])
+    df['pred_choice'] = probit([ev_means, side], beta, alpha)
+    
+    # Convert probabilities to predicted choices (binary)
+    predicted_choices = (df['pred_choice'] >= 0.5).astype(int)
+    
+    # 1. Calculate Log-Likelihood
+    epsilon = 1e-15  # Small value to avoid log(0)
+    ll = np.sum(
+        true_choices * np.log(df['pred_choice'] + epsilon) + 
+        (1 - true_choices) * np.log(1 - df['pred_choice'] + epsilon)
+    )
+    
+    # 2. Calculate AIC
+    k = 2  # Number of parameters (beta, alpha)
+    aic = 2 * k - 2 * ll
+    
+    # 3. Calculate BIC
+    n = len(df)  # Number of observations
+    bic = k * np.log(n) - 2 * ll
+    
+    # 4. Calculate Accuracy
+    accuracy = accuracy_score(true_choices, predicted_choices)
+    
+    # Store results
+    metrics_dict = {
+        "log_likelihood": ll,
+        "log_likelihood_per_obs": ll/ len(true_choices),
+        "accuracy": accuracy, 
+        "AIC": aic,
+        "BIC": bic,
+    }
+    GLM_metrics = pd.DataFrame([metrics_dict]) 
+    return df, GLM_metrics
+    
+
+def inference_data(df, n_back):
+    df_values_new = manual_computation(df,n_back)
+    df,GLM_metrics = metric_computation(df_values_new)
+    return df, GLM_metrics
+def inference_plot(ax,df_values_new):
     train, test = sequential_train_test_split(df_values_new, test_size=0.2)
-    psychometric_fit(ax,[test,train])
+    df_values_new = psychometric_fit(ax,[test,train])

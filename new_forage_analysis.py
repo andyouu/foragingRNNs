@@ -19,7 +19,7 @@ from matplotlib.lines import Line2D
 from neurogym.wrappers import pass_reward, pass_action, side_bias
 import forage_training as ft
 from GLM_related_fucntions import *
-from inference_based_functions import inference_plot
+from inference_based_functions import *
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -233,15 +233,20 @@ def weights_computation(model, data_dir, glm_dir, n_regressors):
                 all_metrics.append(df_metrics)
 
             elif model == 'inference_based':
-                inference_plot(df[df['network_seed'] == net])
-                                                
+                n_back = 5
+                df_regressors, df_metrics = inference_data(df[df['network_seed'] == net],n_back=n_back)
+                df_regressors['seed'] = net
+                df_metrics['seed'] = net
+                all_datas_regressors.append(df_regressors)
+                all_metrics.append(df_metrics)                  
             mice_counter += 1
             
         except np.linalg.LinAlgError as e:
             print(f"Singular matrix encountered for {net}: {str(e)}")
             continue  
-        combined_glms = pd.concat(all_glms, ignore_index=True,axis=0)
-        combined_glms.to_csv(combined_glm_file, index=False)
+        if(model == 'glm_prob_r' or model == 'glm_prob_switch'):
+            combined_glms = pd.concat(all_glms, ignore_index=True,axis=0)
+            combined_glms.to_csv(combined_glm_file, index=False)
         combined_glms_reg = pd.concat(all_datas_regressors, ignore_index=True,axis=0)
         combined_glms_reg.to_csv(combined_glm_data, index=False)
         combined_metrics = pd.concat(all_metrics,ignore_index=True,axis=0)
@@ -249,15 +254,15 @@ def weights_computation(model, data_dir, glm_dir, n_regressors):
 
 def plotting_w(model,glm_dir, data_dir, n_regressors):
     #read the data with the weights
-    df = pd.read_csv(glm_dir, sep=',', low_memory=False)
+    if(model == 'glm_prob_r' or model == 'glm_prob_switch'):
+        df = pd.read_csv(glm_dir, sep=',', low_memory=False)
     #read the data with the original data
     orig_data = pd.read_csv(data_dir, sep=',', low_memory=False)
-    subjects = np.unique(df['seed'])
+    subjects = np.unique(orig_data['seed'])
     # Create figure layouts for results
     n_cols = int(np.ceil(len(subjects) / 2))
     f, axes = plt.subplots(2, n_cols, figsize=(5*n_cols-1, 8), sharey=False)
     f1, axes1 = plt.subplots(2, n_cols, figsize=(5*n_cols-1, 8), sharey=True)
-    regressors_string = df.loc[0,'regressors_string']
     
     for mice_counter, net in enumerate(subjects):
         ax = axes[mice_counter//n_cols, mice_counter%n_cols]
@@ -266,13 +271,18 @@ def plotting_w(model,glm_dir, data_dir, n_regressors):
         ax1.set_title(f'Psychometric Function: {net}')
     
         if model == 'glm_prob_r':
+            regressors_string = df.loc[0,'regressors_string']
             plot_GLM_prob_r(ax, df[df['seed']== net], 1)
             psychometric_data(ax1,orig_data[orig_data['seed']== net],df[df['seed']== net], regressors_string,'choice')
             ax1.set_ylabel('Prob of going right')
         elif model == 'glm_prob_switch':
+            regressors_string = df.loc[0,'regressors_string']
             plot_GLM_prob_switch(ax,  df[df['seed']== net], 1)
             psychometric_data(ax1, orig_data[orig_data['seed']== net], df[df['seed']== net],regressors_string,'switch_num')
             ax1.set_ylabel('Prob of switching')
+        elif model == 'inference_based':
+            inference_plot(ax1, orig_data[orig_data['seed']== net])
+            ax1.set_ylabel('Prob of going right')
             
         ax1.axhline(0.5, color='grey', linestyle='--', linewidth=1.5, alpha=0.7)
         ax1.axvline(0, color='grey', linestyle='--', linewidth=1.5, alpha=0.7)
@@ -362,6 +372,7 @@ def plotting_w(model,glm_dir, data_dir, n_regressors):
             # Overlay the individual data points
         sns.stripplot(x='regressor', y='coefficient', data=df, color='black', alpha=0.6, jitter=True)
         plt.show()
+        
                                     
 
                 
@@ -527,7 +538,7 @@ def plot_switching_evidence_summary_v4(data_dir,model):
             plt.subplots_adjust(top=0.90, hspace=0.35)
             plt.show()
 
-def plot_combined_switch_analysis(data_dir, window=10, max_subjects=9):
+def plot_combined_switch_analysis(data_dir, window, probs):
     df = pd.read_csv(data_dir, sep=',', low_memory=False)
     subjects = np.unique(df['seed'])
     n = len(subjects)
@@ -595,7 +606,7 @@ def plot_combined_switch_analysis(data_dir, window=10, max_subjects=9):
     for j in range(n, len(axs)):
         fig.delaxes(axs[j])  # Rimuove subplot vuoti
 
-    plt.suptitle('Switch-Triggered Analysis per Subject', fontsize=16)
+    plt.suptitle(f'Switch-Triggered Analysis per Subject, probs [{probs},{ 1-probs}]', fontsize=16)
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     plt.show()
 
@@ -633,7 +644,7 @@ if __name__ == '__main__':
             probs_task.append(blocks[j])
 
     print("Selected blocks:", probs_task)
-    probs_net = np.array([[0, 0.9],[0.9, 0]])
+    probs_net = np.array([[0.4, 0.6],[0.6, 0.4]])
     # to avaluate on the same enviroment than the training
     #probs_task = [np.array([0.3, 0.7]), np.array([0.7, 0.3])]
     #env.reset()
@@ -642,16 +653,16 @@ if __name__ == '__main__':
                     f"d{dec_dur}_prb{probs_net[0][0]}{probs_net[0][1]}")
     redo = True
     # Check if analysis_results.pkl exists in the main folder
-    model = 'glm_prob_switch'
+    model = 'inference_based'
     data_dir = os.path.join(folder, f'analysis_data_{model}')
 
     #Control
-    Redo_data = 0
-    Redo_glm = 0
-    Plot_weights = 0
+    Redo_data = 1
+    Redo_glm = 1
+    Plot_weights = 1
     Plot_performance = 0
-    Plot_raster = 1
-    Trig_switch = 0
+    Plot_raster = 0
+    Trig_switch = 1
     if Redo_data or not os.path.exists(data_dir):
         if not os.path.exists(data_dir):
             os.makedirs(data_dir)
@@ -686,4 +697,4 @@ if __name__ == '__main__':
         plot_switching_evidence_summary_v4(data_dir = combined_glm_data, model = model)
 
     if Trig_switch and model == 'glm_prob_switch':
-        plot_combined_switch_analysis(data_dir = combined_glm_data, window=10)
+        plot_combined_switch_analysis(data_dir = combined_glm_data, window=10, probs= probs_net[0][0])
