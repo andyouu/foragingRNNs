@@ -6,7 +6,11 @@ import sys
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 import statsmodels.formula.api as smf
 from typing import Tuple
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score, f1_score,
+    roc_auc_score, brier_score_loss, confusion_matrix
+)
+from scipy.optimize import minimize
 from statsmodels.formula.api import probit as sm_probit
 
 
@@ -33,8 +37,27 @@ def probit(X, beta,alpha):
 
         """
         [x,s] = X
-        y = np.exp(-beta * x + s * alpha)
+        y = np.exp(-beta *x + s * alpha)
         return 1/(1 + y)
+
+
+def softmax_prob_right(V, s, beta, T):
+    """
+    Softmax choice probability for right option:
+    P(right | V, s) = σ(β(V + s*T)) = 1 / (1 + exp(-β(V + s*T)))
+    
+    Parameters:
+    V : array-like
+        Expected values
+    s : array-like 
+        Side indicators (-1 for left, 1 for right)
+    beta : float
+        Inverse temperature (slope)
+    T : float
+        Side bias scaling
+    """
+    z = beta * (V + s * T)
+    return 1 / (1 + np.exp(-z))  # Sigmoid implementation of softmax for binary choice
 
 
 def sequential_train_test_split(
@@ -85,7 +108,13 @@ def sequential_train_test_split(
     
     return train_df, test_df
 
-
+def negative_log_likelihood(params, V, s, choices):
+    """Objective function for minimization"""
+    beta, T = params
+    p_right = softmax_prob_right(V, s, beta, T)
+    epsilon = 1e-15
+    p_right = np.clip(p_right, epsilon, 1-epsilon)
+    return -np.sum(choices * np.log(p_right) + (1-choices) * np.log(1-p_right))
 
 
 def manual_computation(df: pd.DataFrame, n_back: int) -> pd.DataFrame:
@@ -115,7 +144,6 @@ def manual_computation(df: pd.DataFrame, n_back: int) -> pd.DataFrame:
     
     # Create choice-reward combination codes:
     # First digit = choice (0=left, 1=right), second digit = reward (0=no, 1=yes)
-    new_df['choice_1'] = new_df['choice'].shift(1)
     new_df.loc[(new_df['outcome_bool'] == 0) & (new_df['choice'] == 0), 'choice_rwd'] = '00'
     new_df.loc[(new_df['outcome_bool'] == 0) & (new_df['choice'] == 1), 'choice_rwd'] = '01'
     new_df.loc[(new_df['outcome_bool'] == 1) & (new_df['choice'] == 0), 'choice_rwd'] = '10'
@@ -156,9 +184,11 @@ def manual_computation(df: pd.DataFrame, n_back: int) -> pd.DataFrame:
     new_df['V_t'] = (new_df['prob_right'] - new_df['prob_left'])
 
     new_df = new_df.dropna(subset=['choice']).reset_index(drop=True)
-    new_df.loc[(new_df['choice'] == 0), 'side_num'] = -1
-    new_df.loc[(new_df['choice'] == 1), 'side_num'] = 1
-    return new_df
+    new_df['choice_1'] = new_df['choice'].shift(-1)
+    new_df.loc[(new_df['choice_1'] == 0), 'side_num'] = -1
+    new_df.loc[(new_df['choice_1'] == 1), 'side_num'] = 1
+    #return all but last bc it contanis a nan
+    return new_df[:-1]
 
 
 def psychometric_fit(ax,df_glm_mice):
@@ -202,67 +232,211 @@ def psychometric_fit(ax,df_glm_mice):
     ax.plot(ev_means_20, p_right_mean_20, marker = 'o', color = 'black',label = 'Data', alpha = phi)
 
 
-def metric_computation(df):
-    # Extract variables
-    ev_means = df['V_t']
-    side = df['side_num']
-    p_right_mean = df['choice']
-    true_choices = df['choice'].values  # Actual choices (0/1 or True/False)
+def metric_computation_brut_force(df):
+    # Prepare data - assuming columns:
+    # 'V_t': Expected value difference (V_right - V_left)
+    # 'side_num': Side indicator (-1=left, 1=right)
+    # 'choice': 0=left, 1=right
     
-    # Fit probit model
-    n_bins = 20
-    bins = np.linspace(df['V_t'].min(), df['V_t'].max(), n_bins)
-    df['binned_ev'] = pd.cut(df['V_t'], bins=bins)
-    grouped = df.groupby('binned_ev').agg(
-    ev_mean=('V_t', 'mean'),
-    side = ('side_num','mean'),
-    p_right_mean=('choice', 'mean'),
-    ).dropna() 
-    ev_means_g = grouped['ev_mean'].values
-    p_right_mean_g = grouped['p_right_mean'].values
-    side_g = grouped['side'].values
-    [beta, alpha],_ = curve_fit(probit, [ev_means_g,side_g], p_right_mean_g, p0=[0, 1])
-    #this cannot be fitted with all the data
-    #[beta, alpha], _ = curve_fit(probit, [ev_means, side], p_right_mean, p0=[0, 1])
-    df['pred_choice'] = probit([ev_means, side], beta, alpha)
+    V_t = df['V_t'].values  # Should be V_right - V_left
+    s = df['side_num'].values
+    true_choices = df['choice'].values
+    histogram = 1
+    if histogram:
+        plt.figure(figsize=(10, 6))
+        
+        # Set number of bins (adjust as needed)
+        n_bins = 20  # You can change this value
+        
+        # Create histogram with specified bins
+        n, bins, patches = plt.hist(
+            df['V_t'], 
+            bins=n_bins,
+            color='skyblue',
+            edgecolor='black',
+            alpha=0.7
+        )
+        
+        # Customize plot
+        plt.title(f'Histogram of V_t Values ({n_bins} Bins)', fontsize=16)
+        plt.xlabel('V_t Value', fontsize=14)
+        plt.ylabel('Frequency', fontsize=14)
+        
+        # Format x-axis labels
+        bin_centers = (bins[:-1] + bins[1:]) / 2
+        plt.xticks(
+            bins.round(2),  # Show bin edges
+            rotation=45,
+            ha='right'
+        )
+        
+        # Add grid and adjust layout
+        plt.grid(axis='y', alpha=0.2)
+        plt.tight_layout()
+        plt.show()
+    ll_max = -1e10  # Changed from -1e-10 to -1e10 (much larger negative number)
+    best_beta = 0
+    best_T = 0
+    epsilon = 1e-10
+
+        # Corrected grid ranges using np.arange instead of np.linspace
+          # From 0 to 100 in steps of 0.1
+    for T in np.arange(-50, 50, 1): 
+        for beta in np.arange(0, 50, 1):
+            # From -100 to 100 in steps of 0.1
+            df['pred_choice'] = softmax_prob_right(V_t, s, beta, T)
+            ll = np.sum(
+            true_choices * np.log(df['pred_choice'] + epsilon) + 
+                (1 - true_choices) * np.log(1 - df['pred_choice'] + epsilon)
+                )
+            if ll > ll_max:
+                ll_max = ll
+                best_beta = beta
+                best_T = T
+    #Further explore in a neighbourhood of the rough optim
+    for T in np.arange(best_T-1, best_T + 1, 0.05): 
+        for beta in np.arange(best_beta-1, best_beta+1, 0.05):
+            # From -100 to 100 in steps of 0.1
+            df['pred_choice'] = softmax_prob_right(V_t, s, beta, T)
+            ll = np.sum(
+            true_choices * np.log(df['pred_choice'] + epsilon) + 
+                (1 - true_choices) * np.log(1 - df['pred_choice'] + epsilon)
+                )
+            if ll > ll_max:
+                ll_max = ll
+                best_beta = beta
+                best_T = T
+
+    print('Best Beta:', best_beta, beta)
+    print('Best T:', best_T, T)
+    print('Maximum Log-Likelihood:', ll_max)
+        
+
+    # Generate predictions
+    df['pred_choice'] = softmax_prob_right(V_t, s, best_beta, best_T)
     
-    # Convert probabilities to predicted choices (binary)
-    predicted_choices = (df['pred_choice'] >= 0.5).astype(int)
+    # Calculate metrics
+    epsilon = 1e-15
+    p = np.clip(df['pred_choice'], epsilon, 1-epsilon)
     
-    # 1. Calculate Log-Likelihood
-    epsilon = 1e-15  # Small value to avoid log(0)
-    ll = np.sum(
-        true_choices * np.log(df['pred_choice'] + epsilon) + 
-        (1 - true_choices) * np.log(1 - df['pred_choice'] + epsilon)
-    )
+    ll = ll_max
+    k = 2  # beta and T
+    n = len(df)
     
-    # 2. Calculate AIC
-    k = 2  # Number of parameters (beta, alpha)
-    aic = 2 * k - 2 * ll
-    
-    # 3. Calculate BIC
-    n = len(df)  # Number of observations
-    bic = k * np.log(n) - 2 * ll
-    
-    # 4. Calculate Accuracy
-    accuracy = accuracy_score(true_choices, predicted_choices)
-    
-    # Store results
     metrics_dict = {
         "log_likelihood": ll,
-        "log_likelihood_per_obs": ll/ len(true_choices),
-        "accuracy": accuracy, 
-        "AIC": aic,
-        "BIC": bic,
+        "log_likelihood_per_obs": ll / n,
+        "accuracy": accuracy_score(true_choices, (p >= 0.5).astype(int)),
+        "AIC": 2*k - 2*ll,
+        "BIC": k*np.log(n) - 2*ll,
+        "beta": beta,
+        "temperature": T,
     }
-    GLM_metrics = pd.DataFrame([metrics_dict]) 
-    return df, GLM_metrics
+    
+    return df, pd.DataFrame([metrics_dict])
+
+def plot_inference_prob_r(ax, GLM_df, alpha=1):
+    orders = np.arange(len(GLM_df))
+
+    # filter the DataFrame to separate the coefficients
+    beta = GLM_df.loc[GLM_df['regressor'].str.contains('V_t'), 'coefficient']
+    s = GLM_df.loc[GLM_df['regressor'].str.contains('s'), 'coefficient']
+    # intercept = GLM_df.loc['Intercept', "coefficient"]
+    ax.plot(orders[:len(beta)], beta, marker='.', color='indianred', alpha=alpha)
+    ax.plot(orders[:len(s)], s, marker='.', color='teal', alpha=alpha)
+
+    # Create custom legend handles with labels and corresponding colors
+    legend_handles = [
+        mpatches.Patch(color='indianred', label='beta'),
+        mpatches.Patch(color='teal', label='T')
+    ]
+
+    # Add legend with custom handles
+    ax.legend(handles=legend_handles)
+    # ax.axhline(y=intercept, label='Intercept', color='black')
+    ax.axhline(y=0, color='gray', linestyle='--')
+
+    ax.set_ylabel('GLM weight')
+
+def metric_computation_optim(df):    
+    # Create a copy to avoid modifying original dataframe
+    df_analysis = df.copy()
+    
+    # Fit logistic regression model
+    try:
+        mM_logit = smf.logit(formula='choice ~ V_t + side_num', data=df_analysis).fit()
+    except Exception as e:
+        print(f"Model fitting failed: {str(e)}")
+        return None, None
+    
+    # Create coefficients DataFrame
+    GLM_df = pd.DataFrame({
+        'coefficient': mM_logit.params,
+        'std_err': mM_logit.bse,
+        'z_value': mM_logit.tvalues,  # Note: statsmodels uses z-values for logit, not t-values
+        'p_value': mM_logit.pvalues,
+        'conf_Interval_Low': mM_logit.conf_int()[0],
+        'conf_Interval_High': mM_logit.conf_int()[1]
+    })
+    
+    # Add predicted probabilities to dataframe
+    df['pred_prob'] = mM_logit.predict(df_analysis)
+    
+    # Prepare true values and predictions
+    y_true = df['choice'].values  # Using all observations
+    y_pred_prob = df['pred_prob'].values
+    y_pred_class = (y_pred_prob >= 0.5).astype(int)
+    
+    # Create probabilistic predictions
+    np.random.seed(42)
+    y_pred_class_mult = (np.random.rand(len(y_pred_prob)) < y_pred_prob).astype(int)
+    
+    # Calculate metrics
+    metrics_dict = {
+        # Model information
+        "n_obs": len(y_true),
+        "n_params": len(mM_logit.params),
+        
+        # Log-likelihood
+        "log_likelihood": mM_logit.llf,
+        "log_likelihood_per_obs": mM_logit.llf / len(y_true),
+        "null_log_likelihood": mM_logit.llnull,
+        
+        # Information criteria
+        "AIC": mM_logit.aic,
+        "BIC": mM_logit.bic,
+        
+        # Pseudo R-squared
+        "pseudo_r2_mcfadden": mM_logit.prsquared,
+        "pseudo_r2_cox_snell": 1 - np.exp(-2 * (mM_logit.llf - mM_logit.llnull) / len(y_true)),
+        "pseudo_r2_nagelkerke": (1 - np.exp(-2 * (mM_logit.llf - mM_logit.llnull) / len(y_true))) / 
+                            (1 - np.exp(2 * mM_logit.llnull / len(y_true))),
+        
+        # Classification metrics
+        "accuracy": accuracy_score(y_true, y_pred_class),
+        "precision": precision_score(y_true, y_pred_class, zero_division=0),
+        "recall": recall_score(y_true, y_pred_class, zero_division=0),
+        "f1_score": f1_score(y_true, y_pred_class, zero_division=0),
+        "accuracy_bis": accuracy_score(y_true, y_pred_class_mult),
+        "precision_bis": precision_score(y_true, y_pred_class_mult, zero_division=0),
+        "recall_bis": recall_score(y_true, y_pred_class_mult, zero_division=0),
+        "f1_score_bis": f1_score(y_true, y_pred_class_mult, zero_division=0),
+        
+        # Probability metrics
+        "roc_auc": roc_auc_score(y_true, y_pred_prob),
+        "brier_score": brier_score_loss(y_true, y_pred_prob),
+    }
+    regressors_string = 'V_t + side_num'
+    return GLM_df,regressors_string,df, pd.DataFrame([metrics_dict])
+    
     
 
 def inference_data(df, n_back):
     df_values_new = manual_computation(df,n_back)
-    df,GLM_metrics = metric_computation(df_values_new)
-    return df, GLM_metrics
+    #to explore parameters:
+    # df,GLM_metrics = metric_computation_brut_force(df_values_new)
+    GLM_df, regressors_string, df_regressors, df_metrics = metric_computation_optim(df_values_new)
+    return GLM_df, regressors_string, df_regressors, df_metrics
 def inference_plot(ax,df_values_new):
     train, test = sequential_train_test_split(df_values_new, test_size=0.2)
     df_values_new = psychometric_fit(ax,[test,train])

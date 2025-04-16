@@ -190,7 +190,7 @@ def data_creation(data_dir,load_folder, num_steps_exp, verbose, probs_task):
     combined_df.to_csv(combined_data_file, index=False)
 
 
-def weights_computation(model, data_dir, glm_dir, n_regressors):
+def weights_computation(model, data_dir, glm_dir, n_regressors,n_back):
     df = pd.read_csv(data_dir, sep=',', low_memory=False)
     combined_glm_file = os.path.join(glm_dir, 'all_subjects_weights.csv')
     combined_glm_data = os.path.join(glm_dir, 'all_subjects_glm_regressors.csv')
@@ -233,20 +233,25 @@ def weights_computation(model, data_dir, glm_dir, n_regressors):
                 all_metrics.append(df_metrics)
 
             elif model == 'inference_based':
-                n_back = 5
-                df_regressors, df_metrics = inference_data(df[df['network_seed'] == net],n_back=n_back)
+                GLM_df, regressors_string, df_regressors, df_metrics = inference_data(df[df['network_seed'] == net],n_back=n_back)
+                df_glm = GLM_df.copy()
+                df_glm['seed'] = net
                 df_regressors['seed'] = net
                 df_metrics['seed'] = net
+                df_glm['regressors_string'] = regressors_string
+                #Set the indexes as a new column to facilitate the analysis
+                df_reset = df_glm.reset_index()
+                df_reset = df_reset.rename(columns={'index': 'regressor'})
+                all_glms.append(df_reset)
                 all_datas_regressors.append(df_regressors)
-                all_metrics.append(df_metrics)                  
+                all_metrics.append(df_metrics)                 
             mice_counter += 1
             
         except np.linalg.LinAlgError as e:
             print(f"Singular matrix encountered for {net}: {str(e)}")
             continue  
-        if(model == 'glm_prob_r' or model == 'glm_prob_switch'):
-            combined_glms = pd.concat(all_glms, ignore_index=True,axis=0)
-            combined_glms.to_csv(combined_glm_file, index=False)
+        combined_glms = pd.concat(all_glms, ignore_index=True,axis=0)
+        combined_glms.to_csv(combined_glm_file, index=False)
         combined_glms_reg = pd.concat(all_datas_regressors, ignore_index=True,axis=0)
         combined_glms_reg.to_csv(combined_glm_data, index=False)
         combined_metrics = pd.concat(all_metrics,ignore_index=True,axis=0)
@@ -254,8 +259,7 @@ def weights_computation(model, data_dir, glm_dir, n_regressors):
 
 def plotting_w(model,glm_dir, data_dir, n_regressors):
     #read the data with the weights
-    if(model == 'glm_prob_r' or model == 'glm_prob_switch'):
-        df = pd.read_csv(glm_dir, sep=',', low_memory=False)
+    df = pd.read_csv(glm_dir, sep=',', low_memory=False)
     #read the data with the original data
     orig_data = pd.read_csv(data_dir, sep=',', low_memory=False)
     subjects = np.unique(orig_data['seed'])
@@ -281,7 +285,9 @@ def plotting_w(model,glm_dir, data_dir, n_regressors):
             psychometric_data(ax1, orig_data[orig_data['seed']== net], df[df['seed']== net],regressors_string,'switch_num')
             ax1.set_ylabel('Prob of switching')
         elif model == 'inference_based':
-            inference_plot(ax1, orig_data[orig_data['seed']== net])
+            regressors_string = df.loc[0,'regressors_string']
+            plot_inference_prob_r(ax, df[df['seed']== net], 1)
+            psychometric_data(ax1,orig_data[orig_data['seed']== net],df[df['seed']== net], regressors_string,'choice')
             ax1.set_ylabel('Prob of going right')
             
         ax1.axhline(0.5, color='grey', linestyle='--', linewidth=1.5, alpha=0.7)
@@ -372,6 +378,55 @@ def plotting_w(model,glm_dir, data_dir, n_regressors):
             # Overlay the individual data points
         sns.stripplot(x='regressor', y='coefficient', data=df, color='black', alpha=0.6, jitter=True)
         plt.show()
+    if model == 'inference_based':
+        # Create figure with two subplots
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+        
+        # Process regressors
+        regressor_list = [x.strip() for x in regressors_string.split('+')]
+        n_regressors = len(regressor_list)
+        
+        # Calculate averages
+        avg_coeffs = {'V_t': [], 's': []}
+        for reg in regressor_list:
+            if 'V_t' in reg:
+                avg = df[df['regressor'].str.contains(reg.strip(), regex=False)]['coefficient'].mean()
+                avg_coeffs['V_t'].append(avg)
+            if 's' in reg:
+                avg = df[df['regressor'].str.contains(reg.strip(), regex=False)]['coefficient'].mean()
+                avg_coeffs['s'].append(avg)
+        
+        # Plot 1: Average coefficients
+        x_vals = np.arange(1, max(len(avg_coeffs['V_t']), len(avg_coeffs['s'])) + 1)
+        
+        if avg_coeffs['V_t']:
+            ax1.plot(x_vals[:len(avg_coeffs['V_t'])], avg_coeffs['V_t'], 
+                    marker='o', color='indianred', label='β (V_t)')
+        if avg_coeffs['s']:
+            ax1.plot(x_vals[:len(avg_coeffs['s'])], avg_coeffs['s'], 
+                    marker='o', color='teal', label='T (side bias)')
+        
+        ax1.axhline(y=0, color='gray', linestyle='--')
+        ax1.set_ylabel('GLM Weight')
+        ax1.set_xlabel('Network')
+        ax1.set_title('Average GLM Coefficients Across Networks')
+        ax1.legend()
+        
+        # Plot 2: Boxplot with individual points
+        if not df.empty:
+            sns.boxplot(x='regressor', y='coefficient', data=df, 
+                    ax=ax2, color='lightblue', width=0.6)
+            sns.stripplot(x='regressor', y='coefficient', data=df, 
+                        ax=ax2, color='black', alpha=0.6, jitter=True)
+            ax2.set_title('Distribution of GLM Coefficients')
+            ax2.set_ylabel('Coefficient Value')
+            ax2.set_xlabel('Regressor Type')
+            ax2.tick_params(axis='x', rotation=45)
+        
+        plt.tight_layout()
+        plt.show()
+
+
         
                                     
 
@@ -657,9 +712,9 @@ if __name__ == '__main__':
     data_dir = os.path.join(folder, f'analysis_data_{model}')
 
     #Control
-    Redo_data = 1
+    Redo_data = 0
     Redo_glm = 1
-    Plot_weights = 1
+    Plot_weights = 0
     Plot_performance = 0
     Plot_raster = 0
     Trig_switch = 1
@@ -674,16 +729,20 @@ if __name__ == '__main__':
         data_creation(data_dir = data_dir, load_folder=folder, num_steps_exp=100000, verbose=False, probs_task=probs_task)
     combined_data_file = os.path.join(data_dir, 'all_subjects_data.csv')
     n_regressors = 10
-    glm_dir = os.path.join(folder, f'{model}_weights_{n_regressors}')
+    n_back = 1
+    if model == 'inference_based':
+        glm_dir = os.path.join(folder, f'{model}_weights_{n_back}')
+    else:
+        glm_dir = os.path.join(folder, f'{model}_weights_{n_regressors}')
     if Redo_glm or not os.path.exists(glm_dir):
         if not os.path.exists(glm_dir):
             os.makedirs(glm_dir)
         else:
         # Clear existing data files if redoing
             for file in os.listdir(data_dir):
-                if file.endswith('weights.csv'):
+                if file.endswith('weights.csv') or file.endswith('metrics.csv') or file.endswith('regressors.csv'):
                     os.remove(os.path.join(data_dir, file))
-        weights_computation(model = model, data_dir = combined_data_file, glm_dir = glm_dir, n_regressors = n_regressors)
+        weights_computation(model = model, data_dir = combined_data_file, glm_dir = glm_dir, n_regressors = n_regressors, n_back = n_back)
 
     combined_glm_file = os.path.join(glm_dir, 'all_subjects_weights.csv')
     combined_glm_data = os.path.join(glm_dir, 'all_subjects_glm_regressors.csv')
