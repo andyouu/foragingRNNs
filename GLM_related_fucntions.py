@@ -106,7 +106,7 @@ def psychometric_data(ax,df_glm_mice, GLM_df,regressors_string,data_label):
 def GLM_regressors_prob_r(df,n_regressors):
     # Prepare df columns
     # Converting the 'outcome' column to boolean values
-    select_columns = ['reward', 'actions', 'iti','prob_r']
+    select_columns = ['reward', 'actions', 'iti','prob_r', 'split_label']
     df_glm = df.loc[:, select_columns].copy()
     # subtract 2 from actions to get 0 for left and 1 for right
     df_glm['outcome_bool'] = df_glm['reward']
@@ -164,14 +164,17 @@ def plot_GLM_prob_r(ax, GLM_df, alpha=1):
     ax.set_ylabel('GLM weight')
     ax.set_xlabel('Previous trials')
 
-def glm_prob_r_analysis(df,seed,n_regressors):        
+def glm_prob_r_analysis(df,split,n_regressors):        
     # Prepare data for GLM analysis
+    # Get all training data across all splits
     df_glm, regressors_string = GLM_regressors_prob_r(df,n_regressors)
+    df_train = df_glm[df_glm['split_label'] == f'train_{split+1}']
+    df_test = df_glm[df_glm['split_label'] == f'test_{split+1}']
     regressor_list = [x.strip() for x in regressors_string.split(' + ')] + ['choice']
     # Create subset DataFrame with only these regressors
     df_vif = df_glm[regressor_list].copy()
     print(calculate_vif(df_vif))
-    mM_logit = smf.logit(formula='choice ~ ' + regressors_string,data=df_glm).fit()
+    mM_logit = smf.logit(formula='choice ~ ' + regressors_string,data=df_train).fit()
 
     
     # Create results dataframe
@@ -183,10 +186,10 @@ def glm_prob_r_analysis(df,seed,n_regressors):
         'conf_Interval_Low': mM_logit.conf_int()[0],
         'conf_Interval_High': mM_logit.conf_int()[1]
     })
-    df_glm['pred_prob'] = mM_logit.predict(df_glm)
+    df_test['pred_prob'] = mM_logit.predict(df_test)
     #Create a DataFrame with the avaluation metrics
-    y_true = df_glm['choice'][n_regressors:]   # True binary outcomes
-    y_pred_prob = mM_logit.predict(df_glm)[n_regressors:]  # Predicted probabilities (change this tot the test set)
+    y_true = df_test['choice'][n_regressors:]   # True binary outcomes
+    y_pred_prob = mM_logit.predict(df_test)[n_regressors:]  # Predicted probabilities (change this tot the test set)
     y_pred_class = (y_pred_prob >= 0.5).astype(int)
     np.random.seed(42) 
     y_pred_class_mult = (np.random.rand(len(y_pred_prob)) < y_pred_prob).astype(int) # We may use the multinomial here to choose with probability (sampling)
@@ -239,7 +242,7 @@ def GLM_regressors_switch(df,n_regressors):
         new_df([Dataframe]): [dataframe with processed data restrcted to the regression]
         regressors_string([string]) :  [regressioon formula]
     """
-    select_columns = ['reward', 'actions', 'iti', 'prob_r']
+    select_columns = ['reward', 'actions', 'iti', 'prob_r','split_label']
     df_glm = df.loc[:, select_columns].copy()
     # subtract 2 from actions to get 0 for left and 1 for right
     df_glm['outcome_bool'] = df_glm['reward']
@@ -301,8 +304,14 @@ def plot_GLM_prob_switch(ax, GLM_df, alpha=1):
 
     # filter the DataFrame to separate the coefficients
     rss_plus = GLM_df.loc[GLM_df['regressor'].str.contains('rss_plus'), 'coefficient']
+    if GLM_df['regressor'].str.contains('rss_plus10').any():
+        rss_plus = pd.Series(np.roll(rss_plus, -1)) 
     rss_minus = GLM_df.loc[GLM_df['regressor'].str.contains('rss_minus'), 'coefficient']
+    if GLM_df['regressor'].str.contains('rss_minus10').any():
+        rss_minus = pd.Series(np.roll(rss_minus, -1)) 
     rds_plus = GLM_df.loc[GLM_df['regressor'].str.contains('rds_plus'), 'coefficient']
+    if GLM_df['regressor'].str.contains('rds_plus10').any():
+        rds_plus = pd.Series(np.roll(rds_plus, -1)) 
     last_trial = GLM_df.loc[GLM_df['regressor'].str.contains('last_trial'), 'coefficient']
     # intercept = GLM_df.loc['Intercept', "coefficient"]
     ax.plot(orders[:len(rss_plus)], rss_plus, marker='o', color='indianred', alpha=alpha)
@@ -367,19 +376,21 @@ def psychometric_data(ax,df_glm_mice, GLM_df,regressors_string,data_label):
     df_glm_mice['evidence'] = GLM_df.loc[GLM_df['regressor'] == 'Intercept', 'coefficient'].values[0]
     
     for j in range(len(regressors_vect)):
-        df_glm_mice['evidence']+= coefficients[j+1]*df_glm_mice[regressors_vect[j]]
-    #psychometric_fit(ax,df_glm_mice)
+        coef = GLM_df.loc[GLM_df['regressor'] == regressors_vect[j], 'coefficient']
+        df_glm_mice['evidence']+= coef.values[0]*df_glm_mice[regressors_vect[j]]
     psychometric_plot(ax,df_glm_mice,data_label)
 
-def glm_switch_analysis(df,seed,n_regressors):
+def glm_switch_analysis(df,split,n_regressors):
     df_glm, regressors_string = GLM_regressors_switch(df,n_regressors)
+    df_train = df_glm[df_glm['split_label'] == f'train_{split+1}']
+    df_test = df_glm[df_glm['split_label'] == f'test_{split+1}']
     regressor_list = [x.strip() for x in regressors_string.split(' + ')] + ['switch_num']
     # Create subset DataFrame with only these regressors
     df_vif = df_glm[regressor_list].copy()
     print(calculate_vif(df_vif))
 
     #TODO: Implement cross-validation (create a train and test set)
-    mM_logit = smf.logit(formula='switch_num ~ ' + regressors_string,data=df_glm).fit()    
+    mM_logit = smf.logit(formula='switch_num ~ ' + regressors_string,data=df_train).fit()    
     # Create results dataframe
     GLM_df = pd.DataFrame({
         'coefficient': mM_logit.params,
@@ -389,10 +400,10 @@ def glm_switch_analysis(df,seed,n_regressors):
         'conf_Interval_Low': mM_logit.conf_int()[0],
         'conf_Interval_High': mM_logit.conf_int()[1]
     })
-    df_glm['pred_prob'] = mM_logit.predict(df_glm)
+    df_test['pred_prob'] = mM_logit.predict(df_test)
     #Create a DataFrame with the avaluation metrics
-    y_true = df_glm['switch_num'][n_regressors:]   # True binary outcomes
-    y_pred_prob = mM_logit.predict(df_glm)[n_regressors:]  # Predicted probabilities (change this tot the test set)
+    y_true = df_test['switch_num'][n_regressors:]   # True binary outcomes
+    y_pred_prob = mM_logit.predict(df_test)[n_regressors:]  # Predicted probabilities (change this tot the test set)
     y_pred_class = (y_pred_prob >= 0.5).astype(int)
     np.random.seed(42) 
     y_pred_class_mult = (np.random.rand(len(y_pred_prob)) < y_pred_prob).astype(int) # We may use the multinomial here to choose with probability (sampling)

@@ -828,10 +828,24 @@ if __name__ == '__main__':
     #probs = np.array([[1-prob, prob], [prob, 1-prob]])
     #Vertechi
     probs = [np.array([0.4, 0.6]), np.array([0.6, 0.4])]
+    probs_task = []
+    blocks = np.array([
+    [0.2, 0.8],[0.3, 0.7],[0.1, 0.9],[0.4, 0.6],[0.8, 0.2], [0.7, 0.3],[0.9, 0.1],[0.6, 0.4]])
+    #seeds 42 and 13 and 100
+    seed = 13
+    np.random.seed(seed)
+    probs_task = []
+    for i in range(100):
+        if(i%2 == 0):
+            j = np.random.randint(0, 4)
+            probs_task.append(blocks[j])
+        else: 
+            j = np.random.randint(4, 8)
+            probs_task.append(blocks[j])
 
     # create folder to save data based on parameters
     save_folder = (f"{main_folder}{TASK}_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
-                    f"d{dec_dur}_"f"prb{probs[0]}")   
+                    f"d{dec_dur}_"f"prb_task_seed_{seed}")   
     save_folder = save_folder.replace('[', '').replace(']', '')
     save_folder = save_folder.replace(' ', '')
     save_folder = save_folder.replace('-v0', '')
@@ -847,7 +861,7 @@ if __name__ == '__main__':
             # create the environment with the parameters
             env_kwargs, env = create_env(env_seed=env_seed, mean_ITI=mean_ITI, max_ITI=max_ITI,
                                         fix_dur=fix_dur, dec_dur=dec_dur,
-                                        blk_dur=bd, probs=probs,task = TASK,variable_blk_dur = False)
+                                        blk_dur=bd, probs=probs_task,task = TASK,variable_blk_dur = False)
             if debug:
                 data = run_agent_in_environment(num_steps_exp=10000, env=env)
                 gt = np.array(data['gt'])

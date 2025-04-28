@@ -130,7 +130,7 @@ def manual_computation(df: pd.DataFrame, n_back: int) -> pd.DataFrame:
     """
     
     # Select relevant columns and create a working copy
-    select_columns = ['reward', 'actions', 'iti', 'prob_r']
+    select_columns = ['reward', 'actions', 'iti', 'prob_r','split_label']
     df_glm = df.loc[:, select_columns].copy()
     
     # Transform actions (originally 2=left, 3=right) to binary choice (0=left, 1=right)
@@ -358,13 +358,14 @@ def plot_inference_prob_r(ax, GLM_df, alpha=1):
 
     ax.set_ylabel('GLM weight')
 
-def metric_computation_optim(df):    
+def metric_computation_optim(df,split):    
     # Create a copy to avoid modifying original dataframe
-    df_analysis = df.copy()
+    df_train = df[df['split_label'] == f'train_{split+1}']
+    df_test = df[df['split_label'] == f'test_{split+1}']
     
     # Fit logistic regression model
     try:
-        mM_logit = smf.logit(formula='choice ~ V_t + side_num', data=df_analysis).fit()
+        mM_logit = smf.logit(formula='choice ~ V_t + side_num', data=df_train).fit()
     except Exception as e:
         print(f"Model fitting failed: {str(e)}")
         return None, None
@@ -380,11 +381,11 @@ def metric_computation_optim(df):
     })
     
     # Add predicted probabilities to dataframe
-    df['pred_prob'] = mM_logit.predict(df_analysis)
+    df_test['pred_prob'] = mM_logit.predict(df_test)
     
     # Prepare true values and predictions
-    y_true = df['choice'].values  # Using all observations
-    y_pred_prob = df['pred_prob'].values
+    y_true = df_test['choice'].values  # Using all observations
+    y_pred_prob = df_test['pred_prob'].values
     y_pred_class = (y_pred_prob >= 0.5).astype(int)
     
     # Create probabilistic predictions
@@ -431,11 +432,11 @@ def metric_computation_optim(df):
     
     
 
-def inference_data(df, n_back):
+def inference_data(df,split, n_back):
     df_values_new = manual_computation(df,n_back)
     #to explore parameters:
     # df,GLM_metrics = metric_computation_brut_force(df_values_new)
-    GLM_df, regressors_string, df_regressors, df_metrics = metric_computation_optim(df_values_new)
+    GLM_df, regressors_string, df_regressors, df_metrics = metric_computation_optim(df_values_new,split)
     return GLM_df, regressors_string, df_regressors, df_metrics
 def inference_plot(ax,df_values_new):
     train, test = sequential_train_test_split(df_values_new, test_size=0.2)

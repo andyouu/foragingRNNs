@@ -4,6 +4,30 @@ import numpy as np
 import pandas as pd
 import os
 
+
+
+def filter_df_performance(df,combined_data_file):
+    underperforming_nets = []
+    if os.path.exists(combined_data_file):
+        data = pd.read_csv(combined_data_file)
+        subjects = np.unique(data['network_seed'])
+        block_values = np.unique(data['prob_r'])
+        for subj in subjects:
+            subject_perf = {}
+            data_s = data[data['network_seed']== subj]
+            perf = np.array(data_s['perf'])
+            perf = perf[perf != -1] 
+            mean_perf = np.sum(data_s['perf'])/len(data_s)
+            print(f'AVERAGE performance: {mean_perf}')
+            if(mean_perf < 0.55):
+                print(subj)
+                underperforming_nets.append(subj)
+    else:
+        print(f"Data file not found: {combined_data_file}")
+    return underperforming_nets
+
+
+
 def plot_metrics_comparison(blocks, metrics_data, model_names):
     """
     Create separate plots for each metric comparing models and probability conditions
@@ -92,8 +116,9 @@ if __name__ == '__main__':
     dec_dur = 100
     blk_dur = 38
     n_regressors = 10
+    n_back = 3
     blocks = np.array([
-        [0, 0.9],[0.2, 0.8],[0.3, 0.7],[0.4, 0.6]
+        [0, 0.9],[0.2, 0.8],[0.3, 0.7],[0.4, 0.6],[2,2]
     ])
     
     # Store metrics for each model
@@ -122,13 +147,24 @@ if __name__ == '__main__':
         for probs_net in blocks:
             folder = (f"{main_folder}/ForagingBlocks_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
                      f"d{dec_dur}_prb{probs_net[0]}{probs_net[1]}")
-            
-            glm_dir = os.path.join(folder, f'{model}_weights_{n_regressors}')
+            #easy way to include custom-trained nets
+            if probs_net[0] == 2:
+                seed_task = 13
+                folder = (f"{main_folder}/ForagingBlocks_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
+                    f"d{dec_dur}_"f"prb_task_seed_{seed_task}")
+            if(model == 'inference_based'):
+                glm_dir = os.path.join(folder, f'{model}_weights_{n_back}')
+            else:
+                glm_dir = os.path.join(folder, f'{model}_weights_{n_regressors}')
+            data_dir = os.path.join(folder, f'analysis_data_{model}')
             combined_glm_metrics = os.path.join(glm_dir, 'all_subjects_glm_metrics.csv')
-            
+            combined_data_file = os.path.join(data_dir, 'all_subjects_data.csv')
             if os.path.exists(combined_glm_metrics):
                 df = pd.read_csv(combined_glm_metrics)
-                
+                bad_nets = filter_df_performance(df,combined_data_file)
+                df = df[~df['seed'].isin(bad_nets)]
+                #To just plot one point for each seed, comment to see all cross-validation cases
+                df = df.groupby('seed').mean()
                 # Store metrics
                 metrics_data[model]['log_likelihood_per_obs'].append(df['log_likelihood_per_obs'].values)
                 metrics_data[model]['BIC'].append(df['BIC'].values)

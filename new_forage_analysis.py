@@ -201,67 +201,81 @@ def weights_computation(model, data_dir, glm_dir, n_regressors,n_back):
     subjects = np.unique(df['network_seed']) 
     n_subjects = len(subjects)
     mice_counter = 0
-    for net in subjects:
-        try:                                        
-            if model == 'glm_prob_r':
-                GLM_df, regressors_string,df_regressors,df_metrics= glm_prob_r_analysis(df[df['network_seed'] == net], net,n_regressors)
-                df_glm = GLM_df.copy()
-                df_glm['seed'] = net
-                df_regressors['seed'] = net
-                df_metrics['seed'] = net
-                df_glm['regressors_string'] = regressors_string
-                #Set the indexes as a new column to facilitate the analysis
-                df_reset = df_glm.reset_index()
-                df_reset = df_reset.rename(columns={'index': 'regressor'})
-                all_glms.append(df_reset)
-                all_datas_regressors.append(df_regressors)
-                all_metrics.append(df_metrics)
-                
-            
-            elif model == 'glm_prob_switch':
-                GLM_df, regressors_string, df_regressors, df_metrics = glm_switch_analysis(df[df['network_seed'] == net],net,n_regressors)
-                df_glm = GLM_df.copy()
-                df_glm['seed'] = net
-                df_regressors['seed'] = net
-                df_metrics['seed'] = net
-                df_glm['regressors_string'] = regressors_string
-                #Set the indexes as a new column to facilitate the analysis
-                df_reset = df_glm.reset_index()
-                df_reset = df_reset.rename(columns={'index': 'regressor'})
-                all_glms.append(df_reset)
-                all_datas_regressors.append(df_regressors)
-                all_metrics.append(df_metrics)
 
-            elif model == 'inference_based':
-                GLM_df, regressors_string, df_regressors, df_metrics = inference_data(df[df['network_seed'] == net],n_back=n_back)
+    
+    for net in subjects:
+        df_net = df[df['network_seed'] == net]
+        split_size = int(len(df_net) * 0.8) 
+        for split in range(5):
+            start_idx = int(split * 0.2 * len(df_net))
+            end_idx = start_idx + split_size
+            if end_idx > len(df_net):
+                train_df = pd.concat([df_net.iloc[start_idx:], df_net.iloc[:end_idx - len(df_net)]])
+                test_df = df_net.iloc[end_idx - len(df_net):start_idx]
+                train_indices = list(range(start_idx, len(df_net))) + list(range(0, end_idx - len(df_net)))
+                test_indices = list(range(end_idx - len(df_net), start_idx))
+            else:
+                train_df = df_net.iloc[start_idx:end_idx]
+                test_df = pd.concat([df_net.iloc[:start_idx],df_net.iloc[end_idx:]])
+                train_indices = list(range(start_idx, end_idx))
+                test_indices = list(range(0, start_idx)) + list(range(end_idx, len(df_net)))
+                # Create labels
+            train_label = f'train_{split+1}'
+            test_label = f'test_{split+1}'
+            
+            # Get the actual DataFrame indices (not positions) for labeling
+            train_idx = df_net.iloc[train_indices].index
+            test_idx = df_net.iloc[test_indices].index
+            
+            # Apply labels
+            df_net.loc[train_idx, 'split_label'] = train_label
+            df_net.loc[test_idx, 'split_label'] = test_label    
+            try:                                        
+                if model == 'glm_prob_r':
+                    GLM_df, regressors_string,df_regressors,df_metrics= glm_prob_r_analysis(df_net,split,n_regressors)
+                
+                elif model == 'glm_prob_switch':
+                    GLM_df, regressors_string, df_regressors, df_metrics = glm_switch_analysis(df_net,split,n_regressors)
+
+                elif model == 'inference_based':
+                    GLM_df, regressors_string, df_regressors, df_metrics = inference_data(df_net,split,n_back=n_back) 
                 df_glm = GLM_df.copy()
                 df_glm['seed'] = net
                 df_regressors['seed'] = net
                 df_metrics['seed'] = net
+                df_glm['split'] = split
+                df_regressors['split'] = split
+                df_metrics['split'] = split
                 df_glm['regressors_string'] = regressors_string
                 #Set the indexes as a new column to facilitate the analysis
                 df_reset = df_glm.reset_index()
                 df_reset = df_reset.rename(columns={'index': 'regressor'})
                 all_glms.append(df_reset)
                 all_datas_regressors.append(df_regressors)
-                all_metrics.append(df_metrics)                 
-            mice_counter += 1
-            
-        except np.linalg.LinAlgError as e:
-            print(f"Singular matrix encountered for {net}: {str(e)}")
-            continue  
-        combined_glms = pd.concat(all_glms, ignore_index=True,axis=0)
-        combined_glms.to_csv(combined_glm_file, index=False)
-        combined_glms_reg = pd.concat(all_datas_regressors, ignore_index=True,axis=0)
-        combined_glms_reg.to_csv(combined_glm_data, index=False)
-        combined_metrics = pd.concat(all_metrics,ignore_index=True,axis=0)
-        combined_metrics.to_csv(combined_glm_metrics, index=False)
+                all_metrics.append(df_metrics)              
+                mice_counter += 1
+                
+            except np.linalg.LinAlgError as e:
+                print(f"Singular matrix encountered for {net}: {str(e)}")
+                continue
+
+    combined_glms = pd.concat(all_glms, ignore_index=True,axis=0)
+    combined_glms.to_csv(combined_glm_file, index=False)
+    combined_glms_reg = pd.concat(all_datas_regressors, ignore_index=True,axis=0)
+    combined_glms_reg.to_csv(combined_glm_data, index=False)
+    combined_metrics = pd.concat(all_metrics,ignore_index=True,axis=0)
+    combined_metrics.to_csv(combined_glm_metrics, index=False)
 
 def plotting_w(model,glm_dir, data_dir, n_regressors):
     #read the data with the weights
     df = pd.read_csv(glm_dir, sep=',', low_memory=False)
     #read the data with the original data
     orig_data = pd.read_csv(data_dir, sep=',', low_memory=False)
+    #select the original dataframe, without repetitions (to do so, select split == 0)
+    orig_data = orig_data[orig_data['split'] == 0]
+    # average across cross-validation exectuions
+    regressors_string = df.loc[0,'regressors_string']
+    df = df.groupby(['seed','regressor']).mean(numeric_only=True).reset_index()
     subjects = np.unique(orig_data['seed'])
     # Create figure layouts for results
     n_cols = int(np.ceil(len(subjects) / 2))
@@ -275,17 +289,14 @@ def plotting_w(model,glm_dir, data_dir, n_regressors):
         ax1.set_title(f'Psychometric Function: {net}')
     
         if model == 'glm_prob_r':
-            regressors_string = df.loc[0,'regressors_string']
             plot_GLM_prob_r(ax, df[df['seed']== net], 1)
             psychometric_data(ax1,orig_data[orig_data['seed']== net],df[df['seed']== net], regressors_string,'choice')
             ax1.set_ylabel('Prob of going right')
         elif model == 'glm_prob_switch':
-            regressors_string = df.loc[0,'regressors_string']
             plot_GLM_prob_switch(ax,  df[df['seed']== net], 1)
             psychometric_data(ax1, orig_data[orig_data['seed']== net], df[df['seed']== net],regressors_string,'switch_num')
             ax1.set_ylabel('Prob of switching')
         elif model == 'inference_based':
-            regressors_string = df.loc[0,'regressors_string']
             plot_inference_prob_r(ax, df[df['seed']== net], 1)
             psychometric_data(ax1,orig_data[orig_data['seed']== net],df[df['seed']== net], regressors_string,'choice')
             ax1.set_ylabel('Prob of going right')
@@ -706,9 +717,13 @@ if __name__ == '__main__':
     #Change ForagingBlocks for whatever TASK teh network is doing
     folder = (f"{main_folder}/ForagingBlocks_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
                     f"d{dec_dur}_prb{probs_net[0][0]}{probs_net[0][1]}")
-    redo = True
+    custom_task = 1
+    if custom_task:
+        seed_task = 13
+        folder = (f"{main_folder}/ForagingBlocks_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
+                    f"d{dec_dur}_"f"prb_task_seed_{seed_task}")
     # Check if analysis_results.pkl exists in the main folder
-    model = 'inference_based'
+    model = 'glm_prob_switch'
     data_dir = os.path.join(folder, f'analysis_data_{model}')
 
     #Control
@@ -717,7 +732,7 @@ if __name__ == '__main__':
     Plot_weights = 0
     Plot_performance = 0
     Plot_raster = 0
-    Trig_switch = 1
+    Trig_switch = 0
     if Redo_data or not os.path.exists(data_dir):
         if not os.path.exists(data_dir):
             os.makedirs(data_dir)
@@ -728,8 +743,8 @@ if __name__ == '__main__':
                     os.remove(os.path.join(data_dir, file))
         data_creation(data_dir = data_dir, load_folder=folder, num_steps_exp=100000, verbose=False, probs_task=probs_task)
     combined_data_file = os.path.join(data_dir, 'all_subjects_data.csv')
-    n_regressors = 10
-    n_back = 1
+    n_regressors = 7
+    n_back = 5
     if model == 'inference_based':
         glm_dir = os.path.join(folder, f'{model}_weights_{n_back}')
     else:
@@ -739,9 +754,9 @@ if __name__ == '__main__':
             os.makedirs(glm_dir)
         else:
         # Clear existing data files if redoing
-            for file in os.listdir(data_dir):
+            for file in os.listdir(glm_dir):
                 if file.endswith('weights.csv') or file.endswith('metrics.csv') or file.endswith('regressors.csv'):
-                    os.remove(os.path.join(data_dir, file))
+                    os.remove(os.path.join(glm_dir, file))
         weights_computation(model = model, data_dir = combined_data_file, glm_dir = glm_dir, n_regressors = n_regressors, n_back = n_back)
 
     combined_glm_file = os.path.join(glm_dir, 'all_subjects_weights.csv')
