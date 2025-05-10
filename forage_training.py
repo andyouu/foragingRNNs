@@ -181,7 +181,7 @@ def equalize_arrays(array_list):
     return padded_arrays
 
 #the net was set nto None here
-def run_agent_in_environment(num_steps_exp, env, net = None, deterministic=False):
+def run_agent_in_environment(num_steps_exp, env, net = None, deterministic=True):
     """
     Run the agent in the environment for a specified number of steps.
 
@@ -770,7 +770,7 @@ def train_multiple_networks(mean_ITI, max_ITI, fix_dur, blk_dur, w_factor,
         net = net.to(DEVICE)  # Move it explicitly
         with torch.no_grad():
             data = run_agent_in_environment(num_steps_exp=num_steps_test, env=env,
-                                            net=net)
+                                            net=net,deterministic=True)
             np.savez(save_folder_net + '/test_data.npz', **data)
             mperf_list.append(data['mean_perf'])
             plot_task(env_kwargs=env_kwargs, data=data, num_steps=num_steps_plot,

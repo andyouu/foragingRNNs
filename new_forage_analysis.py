@@ -489,32 +489,22 @@ def plotting_perf(data_dir):
     plt.tight_layout()
     plt.show()
 
-def plot_switching_evidence_summary_v4(data_dir,model):
+def plot_switching_evidence_summary_v4(data_dir):
     df = pd.read_csv(data_dir, sep=',', low_memory=False)
     subjects = np.unique(df['seed'])
-    # Create figure layouts for results
     
     for mice_counter, seed in enumerate(subjects):
         df_s = df[df['seed']== seed]
-        if model == 'glm_prob_switch':
-            y_true = df_s['switch_num']
-        elif model == 'glm_prob_r':
-            y_true = df_s['choice']
-        y_pred_prob = df_s['pred_prob'].dropna()
-
-        #get number of trials needed to compute the first predicted value
-
-        lag_trials = len(y_true) - len(y_pred_prob)
+        y_true = df_s['choice']
         df_s = df_s.reset_index(drop=True)
-        filtered_df = df_s[lag_trials:].copy()
+        filtered_df = df_s.copy()
         
         #select windows of trials to avaluate
-        sessions = [np.array([20,70]), np.array([7000,7050]), np.array([1031,1112])]
+        sessions = [np.array([250,470]), np.array([7000,7050]), np.array([1031,1212])] 
         for session in sessions:
             session_data = filtered_df[session[0]:session[1]].copy()
             session_data = session_data.reset_index(drop=True)
-            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(13, 6), sharex=True,
-                                            gridspec_kw={'height_ratios': [1.2, 1.2]})
+            fig, ax1 = plt.subplots(figsize=(13, 3))
 
             prob_r_values = session_data['prob_r'].values
             trials = np.arange(session[0],session[1])
@@ -544,64 +534,32 @@ def plot_switching_evidence_summary_v4(data_dir,model):
                 trial = row['trial']
                 choice = row['choice']
                 outcome = row['outcome_bool']
-                if model == 'glm_prob_switch':
-                    switch_num = row['switch_num']
                     
-                    color = '#40c057' if choice == 0 else '#ae3ec9'
-                    ypos = 0.0 if choice == 0 else 0.3
-                    length = 0.2 if outcome == 1 else 0.1
-                    ax1.vlines(trial, ypos, ypos + length, color=color, linewidth=1.2, alpha=0.85)
-                    if switch_num == 1:
-                        ax1.vlines(trial, -0.2, -0.3, color='black', linewidth=1.4)
-                elif model == 'glm_prob_r':                    
-                    color = '#40c057' if choice == 0 else '#ae3ec9'
-                    ypos = 0.0 if choice == 0 else 0.3
-                    length = 0.2 if outcome == 1 else 0.1
-                    ax1.vlines(trial, ypos, ypos + length, color=color, linewidth=1.2, alpha=0.85)
+                color = '#40c057' if choice == 0 else '#ae3ec9'
+                ypos = 0.0 if choice == 0 else 0.3
+                length = 0.2 if outcome == 1 else 0.1
+                ax1.vlines(trial, ypos, ypos + length, color=color, linewidth=1.2, alpha=0.85)
+
             ax1.set_ylim(-0.4, 1.1)
             ax1.set_yticks([])
             ax1.set_title(f'Network {seed}, Session {session}', fontsize=12)
             ax1.spines['right'].set_visible(False)
             ax1.spines['top'].set_visible(False)
+            ax1.set_xlabel('Trial')
 
-            # === PROB SWITCH ===
-            ax2.plot(session_data['trial'], session_data['pred_prob'],
-                    color='black', linestyle='-', linewidth=1.8, alpha=0.9)
-
-            if(model == 'glm_prob_r'):
-                ax2.set_ylabel('Prob(Right)')
-                ax2.axhline(0.5, linestyle='--', color='red', linewidth=1)
-            elif model == 'glm_prob_switch':
-                ax2.set_ylabel('Prob(Switch)')
-            ax2.set_xlabel('Trial')
-            ax2.set_ylim(0, 1)
-            ax2.spines['right'].set_visible(False)
-            ax2.spines['top'].set_visible(False)
-            if model == 'glm_prob_switch':
-                switch_trials = session_data[session_data['switch_num'] == 1]['trial']
-
-                # Plot vertical lines on both subplots
-                for trial in switch_trials:                
-                    # Lower plot (probability)
-                    ax2.axvline(trial, color='#ff6b6b', linestyle=':', 
-                            linewidth=1.2, alpha=0.4)
-
-
-        # === LEGENDA comune ===
+            # === LEGENDA comune ===
             custom_lines = [
-                Line2D([0], [0], color='black', lw=2, label='Prob(Switch)'),
                 Line2D([0], [0], color='#9c36b5', lw=4, label='Reward Right'),
                 Line2D([0], [0], color='#2b8a3e', lw=4, label='Reward Left'),
                 Line2D([0], [0], color='#40c057', lw=3, label='Left choice'),
-                Line2D([0], [0], color='#ae3ec9', lw=3, label='Right choice'),
-                Line2D([0], [0], color='black', lw=2, label='Switch (tick)')
+                Line2D([0], [0], color='#ae3ec9', lw=3, label='Right choice')
             ]
             fig.legend(handles=custom_lines, frameon=False, fontsize=9, loc='upper right')
 
             fig.suptitle(f'Sessions Summary trials {session[0],session[1]})',
                         fontsize=16, y=1.02)
             plt.tight_layout()
-            plt.subplots_adjust(top=0.90, hspace=0.35)
+            plt.subplots_adjust(top=0.90)
             plt.show()
 
 def plot_combined_switch_analysis(data_dir, window, probs):
@@ -698,7 +656,7 @@ if __name__ == '__main__':
     blocks = np.array([
     [0.2, 0.8],[0.3, 0.7],[0.1, 0.9],[0.4, 0.6],[0.8, 0.2], [0.7, 0.3],[0.9, 0.1],[0.6, 0.4]])
     #seeds 42 and 13 and 100
-    seed = 13
+    seed = 42
     np.random.seed(seed)
     probs_task = []
     for i in range(100):
@@ -710,7 +668,7 @@ if __name__ == '__main__':
             probs_task.append(blocks[j])
 
     print("Selected blocks:", probs_task)
-    probs_net = np.array([[0.4, 0.6],[0.6, 0.4]])
+    probs_net = np.array([[0.2, 0.8],[0.8, 0.2]])
     # to avaluate on the same enviroment than the training
     #probs_task = [np.array([0.3, 0.7]), np.array([0.7, 0.3])]
     #env.reset()
@@ -724,10 +682,12 @@ if __name__ == '__main__':
                     f"d{dec_dur}_"f"prb_task_seed_{seed_task}")
     # Check if analysis_results.pkl exists in the main folder
     model = 'glm_prob_switch'
+    n_regressors = 7
+    n_back = 5
     data_dir = os.path.join(folder, f'analysis_data_{model}')
 
     #Control
-    Redo_data = 0
+    Redo_data = 1
     Redo_glm = 1
     Plot_weights = 0
     Plot_performance = 0
@@ -743,8 +703,7 @@ if __name__ == '__main__':
                     os.remove(os.path.join(data_dir, file))
         data_creation(data_dir = data_dir, load_folder=folder, num_steps_exp=100000, verbose=False, probs_task=probs_task)
     combined_data_file = os.path.join(data_dir, 'all_subjects_data.csv')
-    n_regressors = 7
-    n_back = 5
+
     if model == 'inference_based':
         glm_dir = os.path.join(folder, f'{model}_weights_{n_back}')
     else:
@@ -768,7 +727,7 @@ if __name__ == '__main__':
     if Plot_performance:
         plotting_perf(data_dir = combined_data_file)
     if Plot_raster:
-        plot_switching_evidence_summary_v4(data_dir = combined_glm_data, model = model)
+        plot_switching_evidence_summary_v4(data_dir = combined_glm_data)
 
     if Trig_switch and model == 'glm_prob_switch':
         plot_combined_switch_analysis(data_dir = combined_glm_data, window=10, probs= probs_net[0][0])

@@ -104,6 +104,78 @@ def plot_metrics_comparison(blocks, metrics_data, n_regressors):
     plt.tight_layout()
     plt.show()
 
+def plot_metrics_variance(blocks, metrics_data, model_names):
+    """
+    Compute the performance increase for each metric as prob[0] increases across blocks
+    
+    Args:
+        blocks: Array of probability blocks (e.g., [[0.2,0.8], [0.3,0.7]])
+        metrics_data: Dictionary containing metrics for each model
+        model_names: List of model names (e.g., ['glm_prob_switch', 'glm_prob_r'])
+        
+    Returns:
+        Dictionary containing performance increase information for each model and metric
+    """
+    # Sort blocks by prob[0] to ensure increasing order
+    sorted_blocks = sorted(blocks, key=lambda x: x[1])
+    block_labels = [f"{p[0]}/{p[1]}" for p in sorted_blocks]
+    
+    metrics = ['log_likelihood_per_obs', 'BIC', 'AIC', 'accuracy']
+    metric_titles = {
+        'log_likelihood_per_obs': 'Log Likelihood per Observation',
+        'BIC': 'Bayesian Information Criterion',
+        'AIC': 'Akaike Information Criterion',
+        'accuracy': 'Accuracy'
+    }
+    
+    results = {
+        model: {
+            metric: {
+                'values': None,
+                'normalized_values': None
+            }
+            for metric in metrics
+        }
+        for model in model_names
+    }
+    
+    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    axes = axes.flatten()
+    palette = sns.color_palette("husl", len(model_names))
+
+    for i, metric in enumerate(metrics):
+        ax = axes[i]
+        for j, model in enumerate(model_names):
+            # Get values in order of increasing prob[0]
+            values = [
+                np.mean(metrics_data[model][metric][block_idx])
+                for block_idx, block in enumerate(sorted_blocks)
+            ]
+            # change order in values
+            values = [values[-block_idx] for block_idx in range(1,len(blocks)+1)]
+            
+            # Normalize by subtracting the first value
+            values_norm = (values - values[0])/abs(values[0])
+            
+            # Store results
+            results[model][metric]['values'] = values
+            results[model][metric]['normalized_values'] = values_norm
+            
+            # Plot the normalized values
+            ax.plot(block_labels, values_norm, 
+                   marker='o', 
+                   color=palette[j],
+                   label=model)
+        
+        ax.set_title(metric_titles[metric])
+        ax.set_xlabel('Probability Blocks')
+        ax.set_ylabel('Normalized Evolution')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.show()
+
 if __name__ == '__main__':
     main_folder = '/home/marcaf/TFM(IDIBAPS)/rrns2/networks'
     w_factor = 0.01
@@ -114,9 +186,9 @@ if __name__ == '__main__':
     blk_dur = 38
     
     blocks = np.array([
-        [0, 0.9],[0.2, 0.8],[0.3, 0.7],[0.4, 0.6], [2,2]
+        [0, 0.9],[0.2, 0.8],[0.3, 0.7],[0.4, 0.6]#, [2,2]
     ])
-model = 'glm_prob_switch'
+model = 'inference_based'
 if model == 'inference_based':
     n_regressors = [1,2,3,4,5]
 else:
@@ -162,7 +234,8 @@ for probs_net in blocks:
             metrics_data[n_reg]['probs_net'].append(probs_net)
         else:
             print(f"Metrics file not found: {combined_glm_metrics}")
-plot_metrics_comparison(blocks, metrics_data, n_regressors)
+#plot_metrics_comparison(blocks, metrics_data, n_regressors)
+plot_metrics_variance(blocks, metrics_data, n_regressors)
 
 
 
