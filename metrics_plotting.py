@@ -26,6 +26,106 @@ def filter_df_performance(df,combined_data_file):
         print(f"Data file not found: {combined_data_file}")
     return underperforming_nets
 
+def plot_perf_psychos(combined_data):
+    data_total = combined_data
+    
+    # Set up figure for A0 poster with constrained layout
+    plt.figure(figsize=(20, 18), constrained_layout=False)
+    
+    # Set font sizes
+    title_fontsize = 28
+    label_fontsize = 24
+    legend_fontsize = 20
+    tick_fontsize = 18
+    linewidth = 5
+    markersize = 14
+    
+    # Get all training blocks and sort them
+    training_blocks = np.sort(np.unique(data_total['training_block']))
+    
+    # Initialize alpha value
+    base_alpha = 1.0
+    alpha_step = 0.15
+    
+    # Create colormap for different training blocks
+    colors = plt.cm.viridis(np.linspace(0, 1, len(training_blocks)))
+    
+    for i, train_block in enumerate(training_blocks):
+        data = data_total[data_total['training_block'] == train_block]
+        block_values = np.unique(data['prob_r'])
+        
+        all_perf_by_block = {blk: [] for blk in block_values}
+        
+        subjects = np.unique(data['network_seed'])
+        for subj in subjects:
+            data_s = data[data['network_seed'] == subj]
+            perf = np.array(data_s['perf'])
+            perf = perf[perf != -1]
+            
+            for blk in block_values:
+                mask = (data_s['prob_r'] == blk)[:len(perf)]
+                perf_cond = perf[mask]
+                mean_perf_cond = np.mean(perf_cond) if len(perf_cond) > 0 else np.nan
+                transformed_perf = mean_perf_cond if blk > 0.5 else 1 - mean_perf_cond
+                all_perf_by_block[blk].append(transformed_perf)
+        
+        block_probs = sorted(all_perf_by_block.keys())
+        mean_perfs = [np.mean(all_perf_by_block[blk]) for blk in block_probs]
+        
+        current_alpha = max(0.3, base_alpha - (i * alpha_step))
+        
+        if train_block == 0:
+            train_block_label = f'{train_block}/0.9'
+        else: 
+            train_block_label = f'{train_block}/{1-train_block}'
+        
+        plt.plot(block_probs, mean_perfs, 'o-', 
+                color=colors[i], 
+                alpha=current_alpha,
+                linewidth=linewidth, 
+                markersize=markersize,
+                label=f'Training: {train_block_label}',
+                markeredgecolor='black',
+                markeredgewidth=1.5)
+    
+    # Add chance level line
+    plt.axhline(0.5, color='red', linestyle='--', alpha=0.7, 
+               linewidth=3, label='Chance Level')
+    
+    # Customize plot appearance with padding
+    plt.title('Average Probability Right Across Probability Blocks', 
+             fontsize=title_fontsize, pad=25)  # Increased pad
+    plt.xlabel('Block Probability of reward (Right)', 
+              fontsize=label_fontsize, labelpad=20)  # Increased labelpad
+    plt.ylabel('Average probability of going right', 
+              fontsize=label_fontsize, labelpad=20)
+    
+    # Customize legend
+    legend = plt.legend(loc='upper left', 
+                      fontsize=legend_fontsize,
+                      framealpha=0.9,
+                      edgecolor='black',
+                      facecolor='white',
+                      bbox_to_anchor=(0.02, 0.98),
+                      borderaxespad=0.5)
+    
+    # Make legend frame visible
+    legend.get_frame().set_linewidth(2)
+    
+    # Customize ticks and grid
+    plt.tick_params(axis='both', which='major', labelsize=tick_fontsize)
+    plt.grid(True, alpha=0.3, linewidth=1.5)
+    
+    # Adjust layout to ensure everything fits
+    plt.tight_layout(pad=4.0)  # Increased padding
+    
+    # Save with extra padding
+    plt.savefig('performance_psychophysics_poster.png', 
+               dpi=300, 
+               bbox_inches='tight',
+               pad_inches=1)  # Added pad_inches
+    
+    plt.show()
 
 
 def plot_metrics_comparison(blocks, metrics_data, model_names):
@@ -47,64 +147,93 @@ def plot_metrics_comparison(blocks, metrics_data, model_names):
     metrics = ['log_likelihood_per_obs', 'BIC', 'AIC', 'accuracy']
     y_labels = ['Log Likelihood per Obs', 'BIC', 'AIC', 'Accuracy']
     
-    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    # Set up figure for A0 poster - larger size and square subplots
+    fig, axes = plt.subplots(1, 3, figsize=(36, 12))  # 36 inches wide (A0 width is ~33.1 inches)
     axes = axes.flatten()
     
-    for i, (metric, ylabel) in enumerate(zip(metrics, y_labels)):
-        ax = axes[i]
-        
-        # Prepare data for this metric
-        plot_data = []
-        for model_idx, model in enumerate(model_names):
-            for block_idx, block in enumerate(blocks):
-                values = metrics_data[model][metric][block_idx]
-                for val in values:
-                    plot_data.append({
-                        'Model': model,
-                        'Probability': block_labels[block_idx],
-                        'Value': val,
-                        'Color': palette[model_idx]
-                    })
-        
-        df_plot = pd.DataFrame(plot_data)
-        
-        # Create plot
-        sns.boxplot(
-            x='Probability', 
-            y='Value', 
-            hue='Model',
-            data=df_plot,
-            ax=ax,
-            palette=palette,
-            width=0.6
-        )
-        
-        ax.set_title(f'{ylabel} Comparison')
-        ax.set_ylabel(ylabel)
-        ax.set_xlabel('Probability Condition (Left/Right)')
-        ax.legend(title='Model')
-        
-        # Add individual data points
-        sns.stripplot(
-            x='Probability',
-            y='Value',
-            hue='Model',
-            data=df_plot,
-            ax=ax,
-            dodge=True,
-            palette=palette,
-            alpha=0.5,
-            edgecolor='gray',
-            linewidth=0.5,
-            jitter=True
-        )
-        
-        # Improve layout
-        ax.grid(True, alpha=0.3)
-        sns.despine(ax=ax)
+    # Set font sizes for poster
+    title_fontsize = 24
+    label_fontsize = 20
+    legend_fontsize = 18
+    tick_fontsize = 16
     
+    for i, (metric, ylabel) in enumerate(zip(metrics, y_labels)):
+        # Skip AIC for now
+        if metric == 'accuracy':
+            i -= 1
+        if metric != 'AIC':
+            ax = axes[i]
+            
+            # Prepare data for this metric
+            plot_data = []
+            for model_idx, model in enumerate(model_names):
+                for block_idx, block in enumerate(blocks):
+                    values = metrics_data[model][metric][block_idx]
+                    for val in values:
+                        plot_data.append({
+                            'Model': model,
+                            'Probability': block_labels[block_idx],
+                            'Value': val,
+                            'Color': palette[model_idx]
+                        })
+            
+            df_plot = pd.DataFrame(plot_data)
+            
+            # Create plot with larger elements
+            sns.boxplot(
+                x='Probability', 
+                y='Value', 
+                hue='Model',
+                data=df_plot,
+                ax=ax,
+                palette=palette,
+                width=0.6,
+                linewidth=2.5  # thicker boxplot lines
+            )
+            
+            ax.set_title(f'{ylabel} Comparison', fontsize=title_fontsize)
+            ax.set_ylabel(ylabel, fontsize=label_fontsize)
+            ax.set_xlabel('Probability Condition (Left/Right)', fontsize=label_fontsize)
+            
+            # Customize legend
+            handles, labels = ax.get_legend_handles_labels()
+            ax.legend(
+                handles, 
+                labels, 
+                title='Model',
+                fontsize=legend_fontsize,
+                title_fontsize=legend_fontsize,
+                bbox_to_anchor=(1.05, 1),  # Move legend outside
+                loc='upper left'
+            )
+            
+            # Add individual data points with larger markers
+            sns.stripplot(
+                x='Probability',
+                y='Value',
+                hue='Model',
+                data=df_plot,
+                ax=ax,
+                dodge=True,
+                palette=palette,
+                alpha=0.5,
+                edgecolor='gray',
+                linewidth=1,
+                jitter=True,
+                size=8  # larger dots
+            )
+            
+            # Customize tick labels
+            ax.tick_params(axis='both', which='major', labelsize=tick_fontsize)
+            
+            # Improve layout
+            ax.grid(True, alpha=0.3)
+            sns.despine(ax=ax)
+            
+            # Make plot square
+            ax.set_aspect(1.0/ax.get_data_ratio(), adjustable='box')
+        
     plt.tight_layout()
-    plt.savefig(os.path.join(glm_dir, 'model_metrics_comparison.png'), dpi=300)
     plt.show()
 def plot_metrics_variance(blocks, metrics_data, model_names):
     """
@@ -122,11 +251,11 @@ def plot_metrics_variance(blocks, metrics_data, model_names):
     sorted_blocks = sorted(blocks, key=lambda x: x[1])
     block_labels = [f"{p[0]}/{p[1]}" for p in sorted_blocks]
     
-    metrics = ['log_likelihood_per_obs', 'BIC', 'AIC', 'accuracy']
+    # Removed AIC from metrics
+    metrics = ['log_likelihood_per_obs', 'BIC', 'accuracy']
     metric_titles = {
         'log_likelihood_per_obs': 'Log Likelihood per Observation',
         'BIC': 'Bayesian Information Criterion',
-        'AIC': 'Akaike Information Criterion',
         'accuracy': 'Accuracy'
     }
     
@@ -141,8 +270,18 @@ def plot_metrics_variance(blocks, metrics_data, model_names):
         for model in model_names
     }
     
-    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    # Set up figure for A0 poster - 1 row of 3 square plots
+    fig, axes = plt.subplots(1, 3, figsize=(36, 12))  # 36 inches wide for A0
     axes = axes.flatten()
+    
+    # Set font sizes for poster
+    title_fontsize = 24
+    label_fontsize = 20
+    legend_fontsize = 18
+    tick_fontsize = 16
+    linewidth = 4
+    markersize = 12
+    
     palette = sns.color_palette("husl", len(model_names))
 
     for i, metric in enumerate(metrics):
@@ -163,21 +302,28 @@ def plot_metrics_variance(blocks, metrics_data, model_names):
             results[model][metric]['values'] = values
             results[model][metric]['normalized_values'] = values_norm
             
-            # Plot the normalized values
+            # Plot the normalized values with larger elements
             ax.plot(block_labels, values_norm, 
                    marker='o', 
                    color=palette[j],
-                   label=model)
+                   label=model,
+                   linewidth=linewidth,
+                   markersize=markersize)
         
-        ax.set_title(metric_titles[metric])
-        ax.set_xlabel('Probability Blocks')
-        ax.set_ylabel('Normalized Evolution')
-        ax.legend()
+        ax.set_title(metric_titles[metric], fontsize=title_fontsize)
+        ax.set_xlabel('Probability Blocks', fontsize=label_fontsize)
+        ax.set_ylabel('Normalized Evolution', fontsize=label_fontsize)
+        ax.legend(fontsize=legend_fontsize)
         ax.grid(True, alpha=0.3)
+        ax.tick_params(axis='both', which='major', labelsize=tick_fontsize)
+        
+        # Make plot square
+        ax.set_aspect(1.0/ax.get_data_ratio(), adjustable='box')
     
     plt.tight_layout()
     plt.show()
-
+    
+    return results
 
 if __name__ == '__main__':
     main_folder = '/home/marcaf/TFM(IDIBAPS)/rrns2/networks'
@@ -187,8 +333,8 @@ if __name__ == '__main__':
     fix_dur = 100
     dec_dur = 100
     blk_dur = 38
-    n_regressors = 2
-    n_back = 2
+    n_regressors = 10
+    n_back = 3
     blocks = np.array([
         [0, 0.9],[0.2, 0.8],[0.3, 0.7],[0.4, 0.6]#,[2,2]
     ])
@@ -216,6 +362,7 @@ if __name__ == '__main__':
     }
     
     for model in ['glm_prob_switch', 'glm_prob_r', 'inference_based']:
+        data_file_total = []
         for probs_net in blocks:
             folder = (f"{main_folder}/ForagingBlocks_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
                      f"d{dec_dur}_prb{probs_net[0]}{probs_net[1]}")
@@ -231,10 +378,17 @@ if __name__ == '__main__':
             data_dir = os.path.join(folder, f'analysis_data_{model}')
             combined_glm_metrics = os.path.join(glm_dir, 'all_subjects_glm_metrics.csv')
             combined_data_file = os.path.join(data_dir, 'all_subjects_data.csv')
+
             if os.path.exists(combined_glm_metrics):
                 df = pd.read_csv(combined_glm_metrics)
                 bad_nets = filter_df_performance(df,combined_data_file)
                 df = df[~df['seed'].isin(bad_nets)]
+                #To avooid repetition of data
+                if model == 'inference_based':
+                    df_data = pd.read_csv(combined_data_file)
+                    df_data['training_block'] = probs_net[0]
+                    df_data = df_data[~df_data['network_seed'].isin(bad_nets)]
+                    data_file_total.append(df_data)
                 #To just plot one point for each seed, comment to see all cross-validation cases
                 df = df.groupby('seed').mean()
                 # Store metrics
@@ -251,7 +405,10 @@ if __name__ == '__main__':
                 metrics_data[model]['accuracy'].append(np.array([]))
     
     # Generate plots
-    #plot_metrics_comparison(blocks, metrics_data, ['glm_prob_switch', 'glm_prob_r', 'inference_based'])
+    # Combine data for plotting
+    combined_data = pd.concat(data_file_total, ignore_index=True)
+    plot_perf_psychos(combined_data)
+    plot_metrics_comparison(blocks, metrics_data, ['glm_prob_switch', 'glm_prob_r', 'inference_based'])
     plot_metrics_variance(blocks, metrics_data, ['glm_prob_switch', 'glm_prob_r', 'inference_based'])
 
 
