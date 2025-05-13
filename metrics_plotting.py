@@ -3,6 +3,8 @@ import seaborn as sns
 import numpy as np
 import pandas as pd
 import os
+from matplotlib import patches as mpatches
+import matplotlib.lines as mlines
 
 
 
@@ -34,9 +36,9 @@ def plot_perf_psychos(combined_data):
     
     # Set font sizes
     title_fontsize = 28
-    label_fontsize = 24
-    legend_fontsize = 20
-    tick_fontsize = 18
+    label_fontsize = 50
+    legend_fontsize = 30
+    tick_fontsize = 30
     linewidth = 5
     markersize = 14
     
@@ -61,7 +63,6 @@ def plot_perf_psychos(combined_data):
             data_s = data[data['network_seed'] == subj]
             perf = np.array(data_s['perf'])
             perf = perf[perf != -1]
-            
             for blk in block_values:
                 mask = (data_s['prob_r'] == blk)[:len(perf)]
                 perf_cond = perf[mask]
@@ -90,14 +91,15 @@ def plot_perf_psychos(combined_data):
     
     # Add chance level line
     plt.axhline(0.5, color='red', linestyle='--', alpha=0.7, 
-               linewidth=3, label='Chance Level')
-    
+               linewidth=3)
+    plt.axvline(x=0.5, color='red', linestyle='--', alpha=0.7, 
+            linewidth=3)
     # Customize plot appearance with padding
-    plt.title('Average Probability Right Across Probability Blocks', 
-             fontsize=title_fontsize, pad=25)  # Increased pad
-    plt.xlabel('Block Probability of reward (Right)', 
+    # plt.title('Average Probability Right Across Probability Blocks', 
+    #          fontsize=title_fontsize, pad=25)  # Increased pad
+    plt.xlabel('Block Prob of reward (Right)', 
               fontsize=label_fontsize, labelpad=20)  # Increased labelpad
-    plt.ylabel('Average probability of going right', 
+    plt.ylabel('Average Prob of right', 
               fontsize=label_fontsize, labelpad=20)
     
     # Customize legend
@@ -115,18 +117,108 @@ def plot_perf_psychos(combined_data):
     # Customize ticks and grid
     plt.tick_params(axis='both', which='major', labelsize=tick_fontsize)
     plt.grid(True, alpha=0.3, linewidth=1.5)
+    plt.yticks(fontsize=tick_fontsize)
     
     # Adjust layout to ensure everything fits
     plt.tight_layout(pad=4.0)  # Increased padding
-    
-    # Save with extra padding
-    plt.savefig('performance_psychophysics_poster.png', 
-               dpi=300, 
-               bbox_inches='tight',
-               pad_inches=1)  # Added pad_inches
-    
     plt.show()
 
+def plot_performance_comparison(df_data,combined_data_file):    
+    # Set up figure for A0 poster
+    plt.figure(figsize=(24, 16))
+    
+    # Set font sizes
+    title_fontsize = 55
+    label_fontsize = 55
+    tick_fontsize = 30
+    legend_fontsize = 30
+    
+    # Get all training blocks and sort them
+    training_blocks = np.sort(np.unique(df_data['training_block']))
+    
+    # Create colormap
+    colors = plt.cm.viridis(np.linspace(0, 1, len(training_blocks)))
+    
+    # Prepare data structures
+    good_perfs = []
+    bad_perfs = []
+    boxplot_labels = []
+    
+    for i, train_block in enumerate(training_blocks):
+        good_block_perfs = []
+        bad_block_perfs = []           
+        data = df_data[df_data['training_block'] == train_block]
+        subjects = np.unique(data['network_seed'])
+        for subj in subjects:
+            subject_perf = {}
+            data_s = data[data['network_seed']== subj]
+            perf = np.array(data_s['perf'])
+            perf = perf[perf != -1] 
+            mean_perf = np.sum(data_s['perf'])/len(data_s)
+            print(f'AVERAGE performance: {mean_perf}')
+            if(mean_perf < 0.55):
+                bad_block_perfs.append(mean_perf)
+            else:
+                good_block_perfs.append(mean_perf)
+        # Append to lists   
+        good_perfs.append(good_block_perfs)
+        bad_perfs.append(bad_block_perfs)
+        
+        # Create labels
+        if train_block == 0:
+            train_block_label = f'{train_block}/0.9'
+        else: 
+            train_block_label = f'{train_block}/{1-train_block:.1f}'
+        boxplot_labels.append(train_block_label)
+    
+    # Create boxplot for good networks
+    bp = plt.boxplot(good_perfs, positions=np.arange(len(training_blocks))+1, 
+                    patch_artist=True, widths=0.5)
+    
+    # Style boxes
+    for patch, color in zip(bp['boxes'], colors):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.6)
+    
+    # Style other elements
+    for element in ['whiskers', 'caps', 'medians']:
+        plt.setp(bp[element], color='black', linewidth=2)
+    
+    # Add scattered points for bad networks
+    for i in range(len(training_blocks)):
+        x_pos = np.random.normal(i+1, 0.05, size=len(bad_perfs[i]))
+        plt.scatter(x_pos, bad_perfs[i], color='red', alpha=0.7, 
+                   s=100, edgecolor='black', linewidth=1.5,
+                   label='Poor Performers' if i == 0 else "")
+    
+    # Add chance level line
+    plt.axhline(0.55, color='gray', linestyle='--', linewidth=3, alpha=0.7)
+    
+    #increase y-axis ticks size in the plot
+    plt.yticks(fontsize=tick_fontsize)
+
+    # Customize plot
+    plt.xticks(np.arange(len(training_blocks))+1, boxplot_labels, fontsize=tick_fontsize)
+    plt.xlabel('Training Block (Left/Right Prob)', fontsize=label_fontsize, labelpad=20)
+    plt.ylabel('Average Performance', fontsize=label_fontsize, labelpad=20)
+    plt.title('Network Performance Comparison', fontsize=title_fontsize, pad=20)
+    plt.ylim(0.4, 0.85)
+    
+    # Create legend
+    legend_elements = [
+        mpatches.Patch(facecolor=colors[0], alpha=0.6, label='Good Performers'),
+        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='red',
+                  markersize=15, markeredgecolor='black', label='Poor Performers'),
+        plt.Line2D([0], [0], color='gray', linestyle='--', 
+                  label='Discrimination Threshold', linewidth=3),
+    ]
+    
+    plt.legend(handles=legend_elements, fontsize=legend_fontsize,
+              loc='upper right', framealpha=0.9)
+    
+    plt.grid(True, axis='y', alpha=0.3)
+    plt.tight_layout()
+    plt.show()
 
 def plot_metrics_comparison(blocks, metrics_data, model_names):
     """
@@ -194,7 +286,7 @@ def plot_metrics_comparison(blocks, metrics_data, model_names):
             ax.set_title(f'{ylabel} Comparison', fontsize=title_fontsize)
             ax.set_ylabel(ylabel, fontsize=label_fontsize)
             ax.set_xlabel('Probability Condition (Left/Right)', fontsize=label_fontsize)
-            
+            ax.yticks(fontsize=tick_fontsize)
             # Customize legend
             handles, labels = ax.get_legend_handles_labels()
             ax.legend(
@@ -407,6 +499,7 @@ if __name__ == '__main__':
     # Generate plots
     # Combine data for plotting
     combined_data = pd.concat(data_file_total, ignore_index=True)
+    plot_performance_comparison(combined_data,combined_data_file)
     plot_perf_psychos(combined_data)
     plot_metrics_comparison(blocks, metrics_data, ['glm_prob_switch', 'glm_prob_r', 'inference_based'])
     plot_metrics_variance(blocks, metrics_data, ['glm_prob_switch', 'glm_prob_r', 'inference_based'])

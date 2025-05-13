@@ -437,12 +437,7 @@ def plotting_w(model,glm_dir, data_dir, n_regressors):
         plt.tight_layout()
         plt.show()
 
-
-        
-                                    
-
-                
-                    
+            
 def plotting_perf(data_dir):
     data = pd.read_csv(data_dir, sep=',', low_memory=False)
      # Remove invalid values

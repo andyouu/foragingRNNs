@@ -128,12 +128,12 @@ def prob_r_plot_single_block(ax, n_reg, block, combined_df, plus_color, minus_co
 
 def prob_r_plot_summary(n_reg, blocks, summary_data, plus_color, minus_color):
     """Plot all average lines with fading alpha based on probability"""
-    plt.figure(figsize=(6, 3))
+    plt.figure(figsize=(46.8, 33.1))
     
-    title_fontsize = 12
-    label_fontsize = 11
-    tick_fontsize = 10
-    legend_fontsize = 10
+    title_fontsize = 40
+    label_fontsize = 35
+    tick_fontsize = 30
+    legend_fontsize = 25
     
     # Create legend handles
     legend_handles = [
@@ -169,14 +169,14 @@ def prob_r_plot_summary(n_reg, blocks, summary_data, plus_color, minus_color):
         if len(summary_data[block]['plus_x']) > 0:
             #x_pos = [regressor_positions[name] for name in all_regressor_names if 'r_plus' in name]
             plt.plot(x_pos, summary_data[block]['plus_y'],
-                    color=plus_color, linewidth=2, alpha=alpha,
+                    color=plus_color, linewidth=8, alpha=alpha,
                     marker='o', markersize=6, markeredgecolor='white')
         
         # Plot r_minus averages using actual positions
         if len(summary_data[block]['minus_x']) > 0:
             #x_pos = [regressor_positions[name] for name in all_regressor_names if 'r_minus' in name]
             plt.plot(x_pos, summary_data[block]['minus_y'],
-                    color=minus_color, linewidth=2, alpha=alpha,
+                    color=minus_color, linewidth=8, alpha=alpha,
                     marker='o', markersize=6, markeredgecolor='white')
         
         # Add to legend
@@ -372,7 +372,7 @@ def prob_switch_plot_single_block(ax, n_reg, block, combined_df, summary_data):
 
 def prob_switch_plot_summary(n_reg, blocks, summary_data):
     """Plot all average lines with fading alpha based on probability"""
-    plt.figure(figsize=(8, 4))  # Slightly larger figure to accommodate more regressors
+    plt.figure(figsize=(46.8, 33.1))  # Slightly larger figure to accommodate more regressors
     
         # Set distinct colors for regressor types
     rss_color = '#d62728'  # Red for r_plus
@@ -380,10 +380,10 @@ def prob_switch_plot_summary(n_reg, blocks, summary_data):
     minus_color = '#1f77b4'  # Blue for r_minus
     neutral_color = '#7f7f7f'  # Gray for last_trial
 
-    title_fontsize = 12
-    label_fontsize = 11
-    tick_fontsize = 10
-    legend_fontsize = 10
+    title_fontsize = 40
+    label_fontsize = 35
+    tick_fontsize = 30
+    legend_fontsize = 25
     
     # Create legend handles for regressor types
     legend_handles = [
@@ -446,26 +446,26 @@ def prob_switch_plot_summary(n_reg, blocks, summary_data):
         if 'rss_plus_x' in summary_data[block] and len(summary_data[block]['rss_plus_x']) > 0:
             
             plt.plot(x_pos[1:], summary_data[block]['rss_plus_y'],
-                    color=rss_color, linewidth=2, alpha=alpha,
-                    marker='o', markersize=6, markeredgecolor='white')
+                    color=rss_color, linewidth=8, alpha=alpha,
+                    marker='o', markersize=9, markeredgecolor='white')
         
         # Plot rds_plus averages
         if 'rds_plus_x' in summary_data[block] and len(summary_data[block]['rds_plus_x']) > 0:
             plt.plot(x_pos[1:], summary_data[block]['rds_plus_y'],
-                    color=rds_color, linewidth=2, alpha=alpha,
-                    marker='o', markersize=6, markeredgecolor='white')
+                    color=rds_color, linewidth=8, alpha=alpha,
+                    marker='o', markersize=9, markeredgecolor='white')
         
         # Plot rss_minus averages
         if 'rss_minus_x' in summary_data[block] and len(summary_data[block]['rss_minus_x']) > 0:
             plt.plot(x_pos[1:], summary_data[block]['rss_minus_y'],
-                    color=minus_color, linewidth=2, alpha=alpha,
-                    marker='o', markersize=6, markeredgecolor='white')
+                    color=minus_color, linewidth=8, alpha=alpha,
+                    marker='o', markersize=9, markeredgecolor='white')
         
         # Plot last_trial averages
         if 'last_trial_x' in summary_data[block] and len(summary_data[block]['last_trial_x']) > 0:
             plt.plot(x_pos[0], summary_data[block]['last_trial_y'],
-                    color=neutral_color, linewidth=2, alpha=alpha,
-                    marker='o', markersize=6, markeredgecolor='white')
+                    color=neutral_color, linewidth=8, alpha=alpha,
+                    marker='o', markersize=9, markeredgecolor='white')
         
         # Add to legend
         legend_handles.append(
@@ -587,87 +587,77 @@ def inf_based_plot_single_block(ax, n_reg, block, combined_df, summary_data):
     ax.legend()
 
 def inf_based_plot_summary(n_reg, blocks, summary_data):
-    """Plot all average lines with fading alpha based on probability"""
-    plt.figure(figsize=(6, 4))
-    
+    """
+    Plot probability-based weights using bar plot style with:
+    - β (V_t) in #d62728 red
+    - Side bias in #1f77b4 blue
+    - Probability types instead of mice names
+    - A0 poster sizing
+    """
     # Set colors
-    v_color = '#d62728'  # Red for V
-    s_color = '#1f77b4'  # Blue for s
-
-    title_fontsize = 12
-    label_fontsize = 11
-    tick_fontsize = 10
-    legend_fontsize = 10
+    beta_color = '#d62728'  # Red for β (V_t)
+    side_color = '#1f77b4'  # Blue for side bias
     
-    # Create legend handles
-    legend_handles = [
-        mpatches.Patch(color=v_color, label='V'),
-        mpatches.Patch(color=s_color, label='s')
+    # Set global styling for poster
+    plt.rcParams.update({
+        'axes.titlesize': 40,
+        'axes.labelsize': 35,
+        'xtick.labelsize': 30,
+        'ytick.labelsize': 30,
+        'legend.fontsize': 25,
+        'lines.linewidth': 4
+    })
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(46.8, 33.1))
+    
+    # Get probability blocks from summary data
+    prob_blocks = sorted(summary_data.keys())
+    n_probs = len(prob_blocks)
+    
+    # Create alpha levels (darker for higher probabilities)
+    alphas = np.linspace(0, 0.6, n_probs)
+    
+    # Plot each probability block's coefficients
+    for i, block in enumerate(prob_blocks):
+        prob = block[0]  # Get probability value
+        
+        # Get coefficients from summary data
+        beta = np.mean(summary_data[block]['v_y']) if 'v_y' in summary_data[block] else 0
+        side = np.mean(summary_data[block]['s_y']) if 's_y' in summary_data[block] else 0
+        
+        # Plot bars with probability-specific alpha
+        ax.bar(i-0.2, beta, width=0.4, color=beta_color, alpha=1- alphas[i], 
+               edgecolor='black', linewidth=2)
+        ax.bar(i+0.2, side, width=0.4, color=side_color, alpha=1-alphas[i],
+               edgecolor='black', linewidth=2)
+    
+    # Add reference line and styling
+    ax.axhline(y=0, color='black', linestyle='-', linewidth=3)
+    ax.set_title('Probability-Based Inference Weights', pad=20)
+    ax.set_ylabel('Coefficient Value', labelpad=20)
+    
+    # Set x-ticks as probability values
+    prob_labels = [f'p={block[0]:.2f}/{block[1]:.2f}' for block in prob_blocks]
+    ax.set_xticks(np.arange(n_probs))
+    ax.set_xticklabels(prob_labels, rotation=45, ha='right', fontsize=30)
+    ax.grid(True, axis='y', linestyle=':', alpha=0.3)
+    
+    # Create simplified legends
+    # Legend 1: Coefficient types with your colors
+    coeff_handles = [
+        mpatches.Patch(color=beta_color, label='β (Value)'),
+        mpatches.Patch(color=side_color, label='Side Bias')
     ]
+    legend1 = ax.legend(handles=coeff_handles, title='Coefficient Types',
+                      loc='upper right', bbox_to_anchor=(1.01, 1))
     
-    # Get all unique regressor names in order
-    all_regressor_names = []
-    for block in blocks:
-        if 'v_x' in summary_data[block] and len(summary_data[block]['v_x']) > 0:
-            block_df = combined_df[
-                (combined_df['n_regressors'] == n_reg) & 
-                (combined_df['probability_block'] == block[0])]
-            all_regressor_names = block_df['regressor'].unique()
-            break
+    # Add the first legend back
+    ax.add_artist(legend1)
     
-    if len(all_regressor_names) > 0:
-        all_regressor_names = all_regressor_names.tolist()
-        v_names = sorted([r for r in block_df['regressor'].unique() if 'V_t' in r])
-        s_names = sorted([r for r in block_df['regressor'].unique() if 'side_num' in r])
-        all_regressor_names = v_names + s_names
-
-    # Create position mapping
-    regressor_positions = {name: i for i, name in enumerate(all_regressor_names)}
-
-    # Plot each probability block
-    alpha = 1
-    for block in blocks:
-        prob = block[0]
-        
-        # Plot V averages
-        if 'v_x' in summary_data[block] and len(summary_data[block]['v_x']) > 0:
-            x_pos = [regressor_positions[name] for name in all_regressor_names if 'V' in name]
-            plt.plot(x_pos, summary_data[block]['v_y'],
-                    color=v_color, linewidth=2, alpha=alpha,
-                    marker='o', markersize=6, markeredgecolor='white')
-        
-        # Plot s averages
-        if 's_x' in summary_data[block] and len(summary_data[block]['s_x']) > 0:
-            x_pos = [regressor_positions[name] for name in all_regressor_names if 's' in name]
-            plt.plot(x_pos, summary_data[block]['s_y'],
-                    color=s_color, linewidth=2, alpha=alpha,
-                    marker='o', markersize=6, markeredgecolor='white')
-        
-        # Add probability to legend
-        if block == blocks[0]:
-            legend_handles.append(mlines.Line2D([], [], color='gray', alpha=alpha,
-                                             linewidth=2, label=f'p={prob:.2f}'))
-        alpha -= 0.2
-    
-    # Formatting
-    if all_regressor_names:
-        plt.xticks(range(len(all_regressor_names)), all_regressor_names, 
-                 rotation=45, fontsize=tick_fontsize, ha='right')
-    
-    plt.yticks(fontsize=tick_fontsize)
-    plt.axhline(0, color='gray', linestyle=':', linewidth=0.8)
-    plt.title(f'Average Weights - {n_reg} Regressors', fontsize=title_fontsize, pad=12)
-    plt.ylabel('Coefficient Value', fontsize=label_fontsize)
-    plt.xlabel('Regressor', fontsize=label_fontsize)
-    
-    legend = plt.legend(handles=legend_handles,
-                      loc='best',
-                      title="Regressor Type / Probability",
-                      framealpha=0.8,
-                      fontsize=legend_fontsize)
-    legend.get_title().set_fontsize(legend_fontsize)
-    
-    plt.tight_layout()
+    # Adjust layout
+    plt.tight_layout(pad=5.0)
+    plt.subplots_adjust(right=0.75, bottom=0.2)  # Make space for legends and x-labels
     plt.show()
     
 if __name__ == '__main__':
@@ -683,7 +673,7 @@ if __name__ == '__main__':
         #not considering the custom block fot this plots because of confusion
         [0, 0.9],[0.2, 0.8],[0.3, 0.7],[0.4, 0.6]#, [2,2]
     ])
-model = 'glm_prob_switch'
+model = 'glm_prob_switch'  # or 'glm_prob_r' or 'inference_based'
 if model == 'inference_based':
     n_regressors = [1,2,3,4,5]
 else:
