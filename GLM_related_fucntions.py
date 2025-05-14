@@ -407,6 +407,9 @@ def glm_switch_analysis(df,split,n_regressors):
     y_pred_class = (y_pred_prob >= 0.5).astype(int)
     np.random.seed(42) 
     y_pred_class_mult = (np.random.rand(len(y_pred_prob)) < y_pred_prob).astype(int) # We may use the multinomial here to choose with probability (sampling)
+    #compute BIC from the log-likelihood
+    # Compute BIC from the log-likelihood
+    # BIC = -2 * log-likelihood + k * log(n)
     metrics_dict = {
         # Log-likelihood
         "log_likelihood": mM_logit.llf,

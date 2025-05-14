@@ -484,77 +484,182 @@ def plotting_perf(data_dir):
     plt.tight_layout()
     plt.show()
 
-def plot_switching_evidence_summary_v4(data_dir):
+def plot_switching_evidence_summary_v4(data_dir, combined_glm_file, model):
+    # Load data
     df = pd.read_csv(data_dir, sep=',', low_memory=False)
+    regressor_info = pd.read_csv(combined_glm_file, sep=',', low_memory=False)
+    regressors_string = regressor_info['regressors_string'].values[0]
     subjects = np.unique(df['seed'])
     
+    # Plotting parameters
+    title_fontsize = 40
+    label_fontsize = 35
+    tick_fontsize = 30
+    legend_fontsize = 28
+    linewidth = 4
+    session_bar_height = 0.15
+    
     for mice_counter, seed in enumerate(subjects):
-        df_s = df[df['seed']== seed]
-        y_true = df_s['choice']
-        df_s = df_s.reset_index(drop=True)
-        filtered_df = df_s.copy()
+        df_s = df[df['seed'] == seed]
         
-        #select windows of trials to avaluate
-        sessions = [np.array([250,470]), np.array([7000,7050]), np.array([1031,1212])] 
+        # Select train and test data examples (split == 1)
+        data_train = df_s[df_s['split_label'] == 'train_1']
+        data_test = df_s[df_s['split_label'] == 'test_1']
+
+        # Fit appropriate model
+        if model == 'glm_prob_switch':
+            mM_logit = smf.logit(formula='switch_num ~ ' + regressors_string, data=data_train).fit()
+        elif model in ['glm_prob_r', 'inference_based']:
+            mM_logit = smf.logit(formula='choice ~ ' + regressors_string, data=data_train).fit()
+        
+        # Make predictions
+        y_pred_prob = mM_logit.predict(data_test)
+        data_test['pred_prob'] = y_pred_prob
+        y_pred_class = (y_pred_prob >= 0.5).astype(int)
+        np.random.seed(42) 
+        y_pred_class_mult = (np.random.rand(len(y_pred_prob)) < y_pred_prob).astype(int) 
+        
+        # Select windows of trials to evaluate
+        sessions = [np.array([20, 70])+data_test.index[0], np.array([2000, 2250])+data_test.index[0], np.array([1031, 1112])+data_test.index[0]]
+        
         for session in sessions:
-            session_data = filtered_df[session[0]:session[1]].copy()
+            # Ensure we don't go out of bounds
+            start_idx = max(session[0], data_test.index.min())
+            end_idx = min(session[1], data_test.index.max())
+            session_data = data_test.loc[start_idx:end_idx].copy()
             session_data = session_data.reset_index(drop=True)
-            fig, ax1 = plt.subplots(figsize=(13, 3))
+            
+            # Create figure with A0 proportions
+            fig, (ax1, ax2) = plt.subplots(
+                2, 1, 
+                figsize=(46, 16),  # Wider and taller for A0
+                sharex=True,
+                gridspec_kw={'height_ratios': [1, 1]},
+                constrained_layout=True
+            )
 
+            # ========== TOP PLOT: BEHAVIOR ==========
             prob_r_values = session_data['prob_r'].values
-            trials = np.arange(session[0],session[1])
-
+            trials = np.arange(start_idx, end_idx + 1)  # Use actual trial numbers
             block_starts = [0]
+            
+            # Detect block transitions
             for i in range(1, len(prob_r_values)):
                 if prob_r_values[i] != prob_r_values[i - 1]:
                     block_starts.append(i)
             block_starts.append(len(prob_r_values))
-
+            
+            # Plot probability blocks
             for i in range(len(block_starts) - 1):
-                start_idx = block_starts[i]
-                end_idx = block_starts[i + 1]
-
-                start_trial = trials[start_idx] - 0.5
-                end_trial = trials[end_idx - 1] + 0.5
-                prob = prob_r_values[start_idx]
+                start_idx_block = block_starts[i]
+                end_idx_block = block_starts[i + 1]
+                start_trial = trials[start_idx_block] - 0.5
+                end_trial = trials[end_idx_block - 1] + 0.5
+                prob = prob_r_values[start_idx_block]
                 center_trial = (start_trial + end_trial) / 2
-
-                #beware of the probabilitites thing, we are plotting them contrarily to what de datas show
+                
+                # Color coding for reward probabilities
                 color = '#9c36b5' if prob > 0.5 else '#2b8a3e'
-                ax1.axvspan(start_trial, end_trial, ymin=0.72, ymax=0.78, color=color, alpha=0.7)
-                ax1.text(center_trial, 0.60, f'{prob:.2f}', color=color,
-                         fontsize=9, ha='center', va='top', fontweight='bold')
-            session_data['trial'] = trials
+                ax1.axvspan(start_trial, end_trial, ymin=0.8, ymax=0.9, 
+                           color=color, alpha=0.7)
+                ax1.text(center_trial, 0.75, f'{prob:.2f}', color=color,
+                        fontsize=tick_fontsize, ha='center', va='top', 
+                        fontweight='bold')
+            
+            # Plot choices and outcomes
+            session_data['trial'] = trials[:len(session_data)]  # Ensure same length
             for _, row in session_data.iterrows():
                 trial = row['trial']
                 choice = row['choice']
                 outcome = row['outcome_bool']
-                    
-                color = '#40c057' if choice == 0 else '#ae3ec9'
-                ypos = 0.0 if choice == 0 else 0.3
-                length = 0.2 if outcome == 1 else 0.1
-                ax1.vlines(trial, ypos, ypos + length, color=color, linewidth=1.2, alpha=0.85)
-
+                
+                if model == 'glm_prob_switch':
+                    switch_num = row['switch_num']
+                    color = '#40c057' if choice == 0 else '#ae3ec9'
+                    ypos = 0.0 if choice == 0 else 0.3
+                    length = 0.2 if outcome == 1 else 0.1
+                    ax1.vlines(trial, ypos, ypos + length, 
+                              color=color, linewidth=linewidth*0.8, alpha=0.85)
+                    if switch_num == 1:
+                        ax1.vlines(trial, -0.2, -0.3, 
+                                  color='#ff6b6b', linewidth=linewidth*0.7)
+                elif model in ['glm_prob_r', 'inference_based']:                    
+                    color = '#40c057' if choice == 0 else '#ae3ec9'
+                    ypos = 0.0 if choice == 0 else 0.3
+                    length = 0.2 if outcome == 1 else 0.1
+                    ax1.vlines(trial, ypos, ypos + length, 
+                              color=color, linewidth=linewidth*0.8, alpha=0.85)
+            
+            # Format top plot
             ax1.set_ylim(-0.4, 1.1)
             ax1.set_yticks([])
-            ax1.set_title(f'Network {seed}, Session {session}', fontsize=12)
             ax1.spines['right'].set_visible(False)
             ax1.spines['top'].set_visible(False)
-            ax1.set_xlabel('Trial')
 
-            # === LEGENDA comune ===
-            custom_lines = [
-                Line2D([0], [0], color='#9c36b5', lw=4, label='Reward Right'),
-                Line2D([0], [0], color='#2b8a3e', lw=4, label='Reward Left'),
-                Line2D([0], [0], color='#40c057', lw=3, label='Left choice'),
-                Line2D([0], [0], color='#ae3ec9', lw=3, label='Right choice')
+            # ========== BOTTOM PLOT: MODEL PROBABILITIES ==========
+            ax2.plot(session_data['trial'], session_data['pred_prob'],
+                    color='black', linestyle='-', linewidth=linewidth, alpha=0.9)
+            # Predicctions for choices
+            # ax2.plot(session_data['trial'], y_pred_class[session_data['trial']],
+            #         color='orange', linestyle='-', linewidth=linewidth*2, alpha=0.9)
+            # ax2.plot(session_data['trial'], y_pred_class_mult[session_data['trial']],
+            #         color='brown', linestyle='-', linewidth=linewidth*2, alpha=0.9)
+
+            if model in ['glm_prob_r', 'inference_based']:
+                ax2.set_ylabel('P(Right Choice)', fontsize=label_fontsize)
+                ax2.axhline(0.5, linestyle='--', color='red', 
+                           linewidth=linewidth*0.7)
+            elif model == 'glm_prob_switch':
+                ax2.set_ylabel('P(Switch)', fontsize=label_fontsize)
+                
+            if model == 'glm_prob_switch':
+                switch_trials = session_data[session_data['switch_num'] == 1]['trial']
+                for trial in switch_trials:                
+                    ax2.axvline(trial, color='#ff6b6b', linestyle=':', 
+                               linewidth=linewidth*0.8, alpha=0.4)
+
+            # Format bottom plot
+            ax2.set_xlabel('Trial Number', fontsize=label_fontsize, labelpad=20)
+            ax2.set_ylim(0, 1)
+            ax2.tick_params(axis='both', labelsize=tick_fontsize)
+            ax2.spines['right'].set_visible(False)
+            ax2.spines['top'].set_visible(False)
+            ax2.grid(True, alpha=0.2)
+
+            # ========== LEGEND ==========
+            legend_elements = [
+                Line2D([0], [0], color='black', lw=linewidth, 
+                      label='Model Probability'),
+                Line2D([0], [0], color='#9c36b5', lw=linewidth*2, 
+                      label='Reward Right'),
+                Line2D([0], [0], color='#2b8a3e', lw=linewidth*2, 
+                      label='Reward Left'),
+                Line2D([0], [0], color='#40c057', lw=linewidth*1.5, 
+                      label='Left Choice'),
+                Line2D([0], [0], color='#ae3ec9', lw=linewidth*1.5, 
+                      label='Right Choice'),
+                Line2D([0], [0], color='#ff6b6b', lw=linewidth*0.7, 
+                      label='Switch (tick)'),
             ]
-            fig.legend(handles=custom_lines, frameon=False, fontsize=9, loc='upper right')
+            
+            fig.legend(
+                handles=legend_elements,
+                frameon=True,
+                fontsize=legend_fontsize,
+                loc='upper right',
+                bbox_to_anchor=(0.95, 0.95),
+                framealpha=1,
+                ncol=2
+            )
 
-            fig.suptitle(f'Sessions Summary trials {session[0],session[1]})',
-                        fontsize=16, y=1.02)
-            plt.tight_layout()
-            plt.subplots_adjust(top=0.90)
+            fig.suptitle(
+                f'Behavior and Model Predictions',
+                fontsize=title_fontsize+4,
+                y=0.98
+            )
+            
+            plt.tight_layout(pad=5.0)
+            plt.subplots_adjust(top=0.92, hspace=0.15)
             plt.show()
 
 def plot_combined_switch_analysis(data_dir, window, probs):
@@ -639,7 +744,7 @@ if __name__ == '__main__':
     # create folder to save data based on env seed
     main_folder = '/home/marcaf/TFM(IDIBAPS)/rrns2/networks'
     # main_folder = '/home/molano/Dropbox/Molabo/foragingRNNs/' # '/home/molano/foragingRNNs_data/nets/'
-   # main_folder = '/home/manuel/foragingRNNs/files/'
+    # main_folder = '/home/manuel/foragingRNNs/files/'
     # Set up the task
     w_factor = 0.01
     mean_ITI = 400
@@ -670,24 +775,24 @@ if __name__ == '__main__':
     #Change ForagingBlocks for whatever TASK teh network is doing
     folder = (f"{main_folder}/ForagingBlocks_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
                     f"d{dec_dur}_prb{probs_net[0][0]}{probs_net[0][1]}")
-    custom_task = 1
+    custom_task = 0
     if custom_task:
         seed_task = 13
         folder = (f"{main_folder}/ForagingBlocks_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
                     f"d{dec_dur}_"f"prb_task_seed_{seed_task}")
     # Check if analysis_results.pkl exists in the main folder
-    model = 'glm_prob_switch'
-    n_regressors = 7
-    n_back = 5
+    model = 'glm_prob_switch'  # 'glm_prob_r', 'inference_based', 'glm_prob_switch'
+    n_regressors = 10
+    n_back = 3
     data_dir = os.path.join(folder, f'analysis_data_{model}')
 
     #Control
-    Redo_data = 1
-    Redo_glm = 1
+    Redo_data = 0
+    Redo_glm = 0
     Plot_weights = 0
     Plot_performance = 0
     Plot_raster = 0
-    Trig_switch = 0
+    Trig_switch = 1
     if Redo_data or not os.path.exists(data_dir):
         if not os.path.exists(data_dir):
             os.makedirs(data_dir)
@@ -699,7 +804,7 @@ if __name__ == '__main__':
         data_creation(data_dir = data_dir, load_folder=folder, num_steps_exp=100000, verbose=False, probs_task=probs_task)
     combined_data_file = os.path.join(data_dir, 'all_subjects_data.csv')
 
-    if model == 'inference_based':
+    if model == 'glm_prob_switch':
         glm_dir = os.path.join(folder, f'{model}_weights_{n_back}')
     else:
         glm_dir = os.path.join(folder, f'{model}_weights_{n_regressors}')
@@ -722,7 +827,7 @@ if __name__ == '__main__':
     if Plot_performance:
         plotting_perf(data_dir = combined_data_file)
     if Plot_raster:
-        plot_switching_evidence_summary_v4(data_dir = combined_glm_data)
+        plot_switching_evidence_summary_v4(data_dir = combined_glm_data,combined_glm_file = combined_glm_file,model=model)
 
     if Trig_switch and model == 'glm_prob_switch':
         plot_combined_switch_analysis(data_dir = combined_glm_data, window=10, probs= probs_net[0][0])

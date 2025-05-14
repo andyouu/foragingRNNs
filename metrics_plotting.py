@@ -222,7 +222,7 @@ def plot_performance_comparison(df_data,combined_data_file):
 
 def plot_metrics_comparison(blocks, metrics_data, model_names):
     """
-    Create separate plots for each metric comparing models and probability conditions
+    Create separate plots for BIC and Accuracy with legends inside the plots
     
     Args:
         blocks: Array of probability blocks (e.g., [[0.2,0.8], [0.3,0.7]])
@@ -235,98 +235,96 @@ def plot_metrics_comparison(blocks, metrics_data, model_names):
     # Convert blocks to readable labels
     block_labels = [f"{p[0]}/{p[1]}" for p in blocks]
     
-    # Plot each metric separately
-    metrics = ['log_likelihood_per_obs', 'BIC', 'AIC', 'accuracy']
-    y_labels = ['Log Likelihood per Obs', 'BIC', 'AIC', 'Accuracy']
+    # Set font sizes
+    title_fontsize = 50
+    label_fontsize = 50
+    legend_fontsize = 20  # Slightly smaller for inside placement
+    tick_fontsize = 25
     
-    # Set up figure for A0 poster - larger size and square subplots
-    fig, axes = plt.subplots(1, 3, figsize=(36, 12))  # 36 inches wide (A0 width is ~33.1 inches)
-    axes = axes.flatten()
-    
-    # Set font sizes for poster
-    title_fontsize = 24
-    label_fontsize = 20
-    legend_fontsize = 18
-    tick_fontsize = 16
-    
-    for i, (metric, ylabel) in enumerate(zip(metrics, y_labels)):
-        # Skip AIC for now
-        if metric == 'accuracy':
-            i -= 1
-        if metric != 'AIC':
-            ax = axes[i]
-            
-            # Prepare data for this metric
-            plot_data = []
-            for model_idx, model in enumerate(model_names):
-                for block_idx, block in enumerate(blocks):
-                    values = metrics_data[model][metric][block_idx]
-                    for val in values:
-                        plot_data.append({
-                            'Model': model,
-                            'Probability': block_labels[block_idx],
-                            'Value': val,
-                            'Color': palette[model_idx]
-                        })
-            
-            df_plot = pd.DataFrame(plot_data)
-            
-            # Create plot with larger elements
-            sns.boxplot(
-                x='Probability', 
-                y='Value', 
-                hue='Model',
-                data=df_plot,
-                ax=ax,
-                palette=palette,
-                width=0.6,
-                linewidth=2.5  # thicker boxplot lines
-            )
-            
-            ax.set_title(f'{ylabel} Comparison', fontsize=title_fontsize)
-            ax.set_ylabel(ylabel, fontsize=label_fontsize)
-            ax.set_xlabel('Probability Condition (Left/Right)', fontsize=label_fontsize)
-            ax.yticks(fontsize=tick_fontsize)
-            # Customize legend
-            handles, labels = ax.get_legend_handles_labels()
-            ax.legend(
-                handles, 
-                labels, 
-                title='Model',
-                fontsize=legend_fontsize,
-                title_fontsize=legend_fontsize,
-                bbox_to_anchor=(1.05, 1),  # Move legend outside
-                loc='upper left'
-            )
-            
-            # Add individual data points with larger markers
-            sns.stripplot(
-                x='Probability',
-                y='Value',
-                hue='Model',
-                data=df_plot,
-                ax=ax,
-                dodge=True,
-                palette=palette,
-                alpha=0.5,
-                edgecolor='gray',
-                linewidth=1,
-                jitter=True,
-                size=8  # larger dots
-            )
-            
-            # Customize tick labels
-            ax.tick_params(axis='both', which='major', labelsize=tick_fontsize)
-            
-            # Improve layout
-            ax.grid(True, alpha=0.3)
-            sns.despine(ax=ax)
-            
-            # Make plot square
-            ax.set_aspect(1.0/ax.get_data_ratio(), adjustable='box')
-        
+    # Plot BIC
+    plt.figure(figsize=(10, 6))  # Slightly smaller for single plot
+    plot_metric(blocks, metrics_data, model_names, 'BIC', 'BIC', 
+               palette, block_labels, title_fontsize, label_fontsize, legend_fontsize, tick_fontsize)
     plt.tight_layout()
     plt.show()
+    
+    # Plot Accuracy
+    plt.figure(figsize=(10, 6))
+    plot_metric(blocks, metrics_data, model_names, 'accuracy', 'Accuracy', 
+               palette, block_labels, title_fontsize, label_fontsize, legend_fontsize, tick_fontsize)
+    plt.tight_layout()
+    plt.show()
+
+def plot_metric(blocks, metrics_data, model_names, metric, ylabel, 
+                palette, block_labels, title_fontsize, label_fontsize, legend_fontsize, tick_fontsize):
+    """Helper function to plot a single metric with internal legend"""
+    # Prepare data
+    plot_data = []
+    for model_idx, model in enumerate(model_names):
+        for block_idx, block in enumerate(blocks):
+            values = metrics_data[model][metric][block_idx]
+            for val in values:
+                plot_data.append({
+                    'Model': model,
+                    'Probability': block_labels[block_idx],
+                    'Value': val,
+                    'Color': palette[model_idx]
+                })
+    
+    df_plot = pd.DataFrame(plot_data)
+    
+    # Create plot
+    ax = plt.gca()
+    
+    # Create boxplot
+    sns.boxplot(
+        x='Probability', 
+        y='Value', 
+        hue='Model',
+        data=df_plot,
+        palette=palette,
+        width=0.6,
+        linewidth=1.5
+    )
+    
+    # Add individual data points
+    sns.stripplot(
+        x='Probability',
+        y='Value',
+        hue='Model',
+        data=df_plot,
+        dodge=True,
+        palette=palette,
+        alpha=0.5,
+        edgecolor='gray',
+        linewidth=0.5,
+        jitter=True,
+        size=4  # Slightly smaller points
+    )
+    
+    # Format plot
+    ax.set_title(ylabel, fontsize=title_fontsize, pad=10)
+    ax.set_xlabel('Training Block (Left/Right Prob)', fontsize=label_fontsize)
+    ax.set_ylabel(ylabel, fontsize=label_fontsize)
+    ax.tick_params(axis='both', labelsize=tick_fontsize)
+    
+    # Customize legend - placed inside plot
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(
+        handles, 
+        labels, 
+        title='Model',
+        fontsize=legend_fontsize,
+        title_fontsize=legend_fontsize,
+        loc='best',  # Changed to upper right inside
+        framealpha=1,
+        edgecolor='black'
+    )
+    
+    # Add grid and clean borders
+    ax.grid(True, alpha=0.2)
+    sns.despine(ax=ax)
+
 def plot_metrics_variance(blocks, metrics_data, model_names):
     """
     Compute the performance increase for each metric as prob[0] increases across blocks
@@ -417,6 +415,127 @@ def plot_metrics_variance(blocks, metrics_data, model_names):
     
     return results
 
+def plot_combined_switch_analysis(data_dir, window, probs):
+    df = data_dir
+    subjects = np.unique(df['network_seed'])
+    df['choice'] = df['actions']-2
+    #keep only the right-left actions
+    df = df[df['choice'] >= 0]
+    switchy = 0
+    if switchy == 1:
+        df['choice_1'] = df['choice'].shift(1)
+        df.loc[(df['choice'] == df['choice_1']), 'switch_num'] = 0
+        df.loc[(df['choice'] != df['choice_1']), 'switch_num'] = 1
+    else:
+        df['prob_r_1'] = df['prob_r'].shift(1)
+        df.loc[(df['prob_r'] == df['prob_r_1']), 'switch_num'] = 0
+        df.loc[(df['prob_r'] != df['prob_r_1']), 'switch_num'] = 1
+    # Calculate fraction of correct responses
+    df['fraction_of_correct_responses'] = np.where(
+            ((df['prob_r'] >= 0.5) & (df['choice'] == 1)) |
+            ((df['prob_r'] < 0.5) & (df['choice'] == 0)),
+            1, 0
+        )
+    
+    # Create a single figure
+    fig, ax = plt.subplots(figsize=(24, 16))
+    title_fontsize = 50
+    label_fontsize = 50
+    legend_fontsize = 20  # Slightly smaller for inside placement
+    tick_fontsize = 25
+    
+    # Define colors and alphas for different training blocks
+    colors = plt.cm.viridis(np.linspace(0, 1, len(np.unique(df['training_block']))))
+    alphas = [0.3, 0.6]  # Two different alpha values for each block
+    
+    for i, train in enumerate(np.unique(df['training_block'])):
+        # Initialize lists to store all aligned data
+        t_df = df[df['training_block'] == train].reset_index(drop=True)
+        all_outcome = []
+        all_switches = []
+        subject_means = []
+        
+        for subj in subjects:
+            subj_df = t_df[t_df['network_seed'] == subj].reset_index(drop=True)
+            
+            # Calculate subject mean
+            subject_mean = subj_df['fraction_of_correct_responses'].mean()
+            subject_means.append(subject_mean)
+            
+            # ----- Switch indices -----
+            switch_idx = subj_df.index[subj_df['switch_num'] == 1]
+            
+            # ----- Switch-triggered outcome -----
+            for idx in switch_idx:
+                if idx - window < 0 or idx + window >= len(subj_df):
+                    continue
+
+                lags = np.arange(-window, window + 1)
+                outcome_vals = subj_df.iloc[idx - window:idx + window + 1]['fraction_of_correct_responses'].values
+                switch_vals = subj_df.iloc[idx - window:idx + window + 1]['switch_num'].values
+
+                for lag, o, s in zip(lags, outcome_vals, switch_vals):
+                    all_outcome.append({'lag': lag, 'fraction_of_correct_responses': o})
+                    all_switches.append({'lag': lag, 'switch': s})
+        
+        # Convert to DataFrames
+        outcome_df = pd.DataFrame(all_outcome)
+        switch_df = pd.DataFrame(all_switches)
+        
+        # Calculate overall means
+        overall_subject_mean = np.mean(subject_means)
+        
+        # --- Plot outcome curve ---
+        outcome_mean = outcome_df.groupby('lag')['fraction_of_correct_responses'].mean()
+        outcome_sem = outcome_df.groupby('lag')['fraction_of_correct_responses'].sem()
+        if train == 0:
+            label = f'{train}/0.9'
+        else:
+            label = f'{train}/{1-train}'
+        # First line for this training block (lower alpha)
+        ax.errorbar(outcome_mean.index, outcome_mean.values, yerr=outcome_sem.values,
+                    fmt='o-', capsize=3, color=colors[i],
+                    label=f'Average Outcome ({label})')
+        
+        # Second line for this training block (higher alpha)
+        # ax.errorbar(outcome_mean.index, outcome_mean.values, yerr=None,
+        #             fmt='-', color=colors[i],
+        #             label=f'Average Outcome ({label})')
+        
+        # --- Plot switch probability ---
+        switch_prob = switch_df.groupby('lag')['switch'].mean()
+        switch_sem = switch_df.groupby('lag')['switch'].sem()
+        
+        # First line for this training block (lower alpha)
+        if switchy == 1:
+            switch_label = f'P(switch) ({label})'
+            ax.errorbar(switch_prob.index, switch_prob.values, yerr=switch_sem.values,
+            fmt='o-', capsize=3, alpha=alphas[0], color=colors[i],
+            label=switch_label)
+        else:
+            switch_label = f'P(change_block) ({label})'
+        switch_prob[0] = 0.5*switch_prob[-1] + 0.5*switch_prob[1]
+
+        
+        # Second line for this training block (higher alpha)
+        # ax.errorbar(switch_prob.index, switch_prob.values, yerr=None,
+        #             fmt='-', alpha=alphas[1], color=colors[i],
+        #             label=f'P(switch) ({label})')
+    
+    # --- Reference lines ---
+    ax.axvline(0, linestyle='--', color='black', label='Switch')
+    ax.axhline(0.5, linestyle='--', color='gray', label='Chance')
+    ax.axhline(overall_subject_mean, linestyle=':', color='green', label='Overall Subject Mean')
+    
+    ax.set_title(f'Switch-Triggered Analysis',size=title_fontsize)
+    ax.set_ylim(0, 1)
+    ax.set_ylabel('Average Outcome',size=label_fontsize)
+    ax.set_xlabel('Trial lag',size=label_fontsize)
+    ax.legend(bbox_to_anchor=(0.70, 1), loc='upper left')
+    
+    plt.tight_layout()
+    plt.show()
+
 if __name__ == '__main__':
     main_folder = '/home/marcaf/TFM(IDIBAPS)/rrns2/networks'
     w_factor = 0.01
@@ -499,10 +618,12 @@ if __name__ == '__main__':
     # Generate plots
     # Combine data for plotting
     combined_data = pd.concat(data_file_total, ignore_index=True)
-    plot_performance_comparison(combined_data,combined_data_file)
-    plot_perf_psychos(combined_data)
+    plot_combined_switch_analysis(combined_data, 10, blocks[0][0])
     plot_metrics_comparison(blocks, metrics_data, ['glm_prob_switch', 'glm_prob_r', 'inference_based'])
     plot_metrics_variance(blocks, metrics_data, ['glm_prob_switch', 'glm_prob_r', 'inference_based'])
+    plot_performance_comparison(combined_data,combined_data_file)
+    plot_perf_psychos(combined_data)
+
 
 
 

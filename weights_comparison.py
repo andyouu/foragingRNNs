@@ -130,8 +130,8 @@ def prob_r_plot_summary(n_reg, blocks, summary_data, plus_color, minus_color):
     """Plot all average lines with fading alpha based on probability"""
     plt.figure(figsize=(46.8, 33.1))
     
-    title_fontsize = 40
-    label_fontsize = 35
+    title_fontsize = 50
+    label_fontsize = 50
     tick_fontsize = 30
     legend_fontsize = 25
     
@@ -192,7 +192,6 @@ def prob_r_plot_summary(n_reg, blocks, summary_data, plus_color, minus_color):
     
     plt.yticks(fontsize=tick_fontsize)
     plt.axhline(0, color='gray', linestyle=':', linewidth=0.8)
-    plt.title(f'Average Weights - {n_reg-1} Regressors', fontsize=title_fontsize, pad=12)
     plt.ylabel('Coefficient Value', fontsize=label_fontsize)
     plt.xlabel('Regressor', fontsize=label_fontsize)
     
@@ -380,8 +379,8 @@ def prob_switch_plot_summary(n_reg, blocks, summary_data):
     minus_color = '#1f77b4'  # Blue for r_minus
     neutral_color = '#7f7f7f'  # Gray for last_trial
 
-    title_fontsize = 40
-    label_fontsize = 35
+    title_fontsize = 50
+    label_fontsize = 50
     tick_fontsize = 30
     legend_fontsize = 25
     
@@ -475,7 +474,7 @@ def prob_switch_plot_summary(n_reg, blocks, summary_data):
     
     plt.yticks(fontsize=tick_fontsize)
     plt.axhline(0, color='gray', linestyle=':', linewidth=0.8)
-    plt.title(f'Average Weights - {n_reg-1} Regressors', fontsize=title_fontsize, pad=12)
+    plt.title(f'Average Weights', fontsize=title_fontsize, pad=12)
     plt.ylabel('Coefficient Value', fontsize=label_fontsize)
     plt.xlabel('Regressor', fontsize=label_fontsize)
     
@@ -600,8 +599,8 @@ def inf_based_plot_summary(n_reg, blocks, summary_data):
     
     # Set global styling for poster
     plt.rcParams.update({
-        'axes.titlesize': 40,
-        'axes.labelsize': 35,
+        'axes.titlesize': 50,
+        'axes.labelsize': 50,
         'xtick.labelsize': 30,
         'ytick.labelsize': 30,
         'legend.fontsize': 25,
@@ -673,7 +672,7 @@ if __name__ == '__main__':
         #not considering the custom block fot this plots because of confusion
         [0, 0.9],[0.2, 0.8],[0.3, 0.7],[0.4, 0.6]#, [2,2]
     ])
-model = 'glm_prob_switch'  # or 'glm_prob_r' or 'inference_based'
+model = 'inference_based'  # or 'glm_prob_r' or 'inference_based'
 if model == 'inference_based':
     n_regressors = [1,2,3,4,5]
 else:
