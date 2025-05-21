@@ -89,6 +89,7 @@ def plot_perf_psychos(combined_data):
                 markeredgecolor='black',
                 markeredgewidth=1.5)
     
+    plt.plot(block_probs, block_probs, 'k--', alpha=0.5, linewidth=linewidth)
     # Add chance level line
     plt.axhline(0.5, color='red', linestyle='--', alpha=0.7, 
                linewidth=3)
@@ -137,7 +138,7 @@ def plot_performance_comparison(df_data,combined_data_file):
     training_blocks = np.sort(np.unique(df_data['training_block']))
     
     # Create colormap
-    colors = plt.cm.viridis(np.linspace(0, 1, len(training_blocks)))
+    colors = plt.cm.viridis(np.linspace(0, 1, len(np.unique(df_data['training_block']))))
     
     # Prepare data structures
     good_perfs = []
@@ -172,13 +173,15 @@ def plot_performance_comparison(df_data,combined_data_file):
         boxplot_labels.append(train_block_label)
     
     # Create boxplot for good networks
-    bp = plt.boxplot(good_perfs, positions=np.arange(len(training_blocks))+1, 
-                    patch_artist=True, widths=0.5)
-    
-    # Style boxes
-    for patch, color in zip(bp['boxes'], colors):
-        patch.set_facecolor(color)
-        patch.set_alpha(0.6)
+    boxprops = [{'facecolor': c, 'alpha': 1-(0.15*i)} for i,c in enumerate(colors)]
+
+    bp = plt.boxplot(good_perfs, positions=np.arange(len(training_blocks))+1,
+                    patch_artist=True, widths=0.5,
+                    boxprops=dict(facecolor='none'))  # Initialize
+
+    # Apply styles
+    for patch, props in zip(bp['boxes'], boxprops):
+        patch.update(props)
     
     # Style other elements
     for element in ['whiskers', 'caps', 'medians']:
@@ -199,9 +202,9 @@ def plot_performance_comparison(df_data,combined_data_file):
 
     # Customize plot
     plt.xticks(np.arange(len(training_blocks))+1, boxplot_labels, fontsize=tick_fontsize)
-    plt.xlabel('Training Block (Left/Right Prob)', fontsize=label_fontsize, labelpad=20)
+    plt.xlabel('Pre-training condition', fontsize=label_fontsize, labelpad=20)
     plt.ylabel('Average Performance', fontsize=label_fontsize, labelpad=20)
-    plt.title('Network Performance Comparison', fontsize=title_fontsize, pad=20)
+    #plt.title('Network Performance Comparison', fontsize=title_fontsize, pad=20)
     plt.ylim(0.4, 0.85)
     
     # Create legend
@@ -254,6 +257,13 @@ def plot_metrics_comparison(blocks, metrics_data, model_names):
                palette, block_labels, title_fontsize, label_fontsize, legend_fontsize, tick_fontsize)
     plt.tight_layout()
     plt.show()
+    
+    #Plot Log Likelihood
+    plt.figure(figsize=(10, 6))
+    plot_metric(blocks, metrics_data, model_names, 'log_likelihood_per_obs', 'Log Likelihood per Obs',
+               palette, block_labels, title_fontsize, label_fontsize, legend_fontsize, tick_fontsize)
+    plt.tight_layout()
+    plt.show()
 
 def plot_metric(blocks, metrics_data, model_names, metric, ylabel, 
                 palette, block_labels, title_fontsize, label_fontsize, legend_fontsize, tick_fontsize):
@@ -303,8 +313,8 @@ def plot_metric(blocks, metrics_data, model_names, metric, ylabel,
     )
     
     # Format plot
-    ax.set_title(ylabel, fontsize=title_fontsize, pad=10)
-    ax.set_xlabel('Training Block (Left/Right Prob)', fontsize=label_fontsize)
+    #ax.set_title(ylabel, fontsize=title_fontsize, pad=10)
+    ax.set_xlabel('Pre-training condition', fontsize=label_fontsize)
     ax.set_ylabel(ylabel, fontsize=label_fontsize)
     ax.tick_params(axis='both', labelsize=tick_fontsize)
     
@@ -421,7 +431,7 @@ def plot_combined_switch_analysis(data_dir, window, probs):
     df['choice'] = df['actions']-2
     #keep only the right-left actions
     df = df[df['choice'] >= 0]
-    switchy = 0
+    switchy = 1
     if switchy == 1:
         df['choice_1'] = df['choice'].shift(1)
         df.loc[(df['choice'] == df['choice_1']), 'switch_num'] = 0
@@ -441,8 +451,8 @@ def plot_combined_switch_analysis(data_dir, window, probs):
     fig, ax = plt.subplots(figsize=(24, 16))
     title_fontsize = 50
     label_fontsize = 50
-    legend_fontsize = 20  # Slightly smaller for inside placement
-    tick_fontsize = 25
+    legend_fontsize = 30  # Slightly smaller for inside placement
+    tick_fontsize = 30
     
     # Define colors and alphas for different training blocks
     colors = plt.cm.viridis(np.linspace(0, 1, len(np.unique(df['training_block']))))
@@ -495,7 +505,7 @@ def plot_combined_switch_analysis(data_dir, window, probs):
         # First line for this training block (lower alpha)
         ax.errorbar(outcome_mean.index, outcome_mean.values, yerr=outcome_sem.values,
                     fmt='o-', capsize=3, color=colors[i],
-                    label=f'Average Outcome ({label})')
+                    label=f'Training:({label})',linewidth=5)
         
         # Second line for this training block (higher alpha)
         # ax.errorbar(outcome_mean.index, outcome_mean.values, yerr=None,
@@ -509,12 +519,18 @@ def plot_combined_switch_analysis(data_dir, window, probs):
         # First line for this training block (lower alpha)
         if switchy == 1:
             switch_label = f'P(switch) ({label})'
-            ax.errorbar(switch_prob.index, switch_prob.values, yerr=switch_sem.values,
-            fmt='o-', capsize=3, alpha=alphas[0], color=colors[i],
-            label=switch_label)
+            # ax.errorbar(switch_prob.index, switch_prob.values, yerr=switch_sem.values,
+            # fmt='o-', capsize=3, alpha=alphas[0], color=colors[i],
+            # label=switch_label)
         else:
             switch_label = f'P(change_block) ({label})'
         switch_prob[0] = 0.5*switch_prob[-1] + 0.5*switch_prob[1]
+    if switchy == 1:
+        ax.set_xlabel('Trials from switch',size=label_fontsize)
+        ax.axvline(0, linestyle='--', color='black', label='Switch')
+    else:
+        ax.set_xlabel('Trials from block transition',size=label_fontsize)
+        ax.axvline(0, linestyle='--', color='black', label='Block change')
 
         
         # Second line for this training block (higher alpha)
@@ -523,15 +539,12 @@ def plot_combined_switch_analysis(data_dir, window, probs):
         #             label=f'P(switch) ({label})')
     
     # --- Reference lines ---
-    ax.axvline(0, linestyle='--', color='black', label='Switch')
     ax.axhline(0.5, linestyle='--', color='gray', label='Chance')
-    ax.axhline(overall_subject_mean, linestyle=':', color='green', label='Overall Subject Mean')
-    
-    ax.set_title(f'Switch-Triggered Analysis',size=title_fontsize)
-    ax.set_ylim(0, 1)
     ax.set_ylabel('Average Outcome',size=label_fontsize)
-    ax.set_xlabel('Trial lag',size=label_fontsize)
-    ax.legend(bbox_to_anchor=(0.70, 1), loc='upper left')
+    ax.set_ylim(0.3, 0.7)
+    plt.yticks(fontsize=tick_fontsize)
+    plt.xticks(fontsize=tick_fontsize)
+    ax.legend(loc='lower left',fontsize=legend_fontsize)
     
     plt.tight_layout()
     plt.show()
@@ -544,7 +557,7 @@ if __name__ == '__main__':
     fix_dur = 100
     dec_dur = 100
     blk_dur = 38
-    n_regressors = 10
+    n_regressors = 4
     n_back = 3
     blocks = np.array([
         [0, 0.9],[0.2, 0.8],[0.3, 0.7],[0.4, 0.6]#,[2,2]
@@ -618,11 +631,12 @@ if __name__ == '__main__':
     # Generate plots
     # Combine data for plotting
     combined_data = pd.concat(data_file_total, ignore_index=True)
-    plot_combined_switch_analysis(combined_data, 10, blocks[0][0])
     plot_metrics_comparison(blocks, metrics_data, ['glm_prob_switch', 'glm_prob_r', 'inference_based'])
-    plot_metrics_variance(blocks, metrics_data, ['glm_prob_switch', 'glm_prob_r', 'inference_based'])
     plot_performance_comparison(combined_data,combined_data_file)
+    plot_combined_switch_analysis(combined_data, 10, blocks[0][0])
     plot_perf_psychos(combined_data)
+    plot_metrics_variance(blocks, metrics_data, ['glm_prob_switch', 'glm_prob_r', 'inference_based'])
+
 
 
 

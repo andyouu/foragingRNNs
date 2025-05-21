@@ -42,10 +42,10 @@ def plot_metrics_comparison(blocks, metrics_data, n_regressors):
     block_labels = [f"{p[0]}/{p[1]}" for p in blocks]
     
     # Plot each metric separately
-    metrics = ['log_likelihood_per_obs', 'BIC', 'AIC', 'accuracy']
-    y_labels = ['Log Likelihood per Obs', 'BIC', 'AIC', 'Accuracy']
+    metrics = ['log_likelihood_per_obs', 'BIC', 'accuracy']
+    y_labels = ['Log Likelihood per Obs', 'BIC', 'Accuracy']
     
-    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    fig, axes = plt.subplots(1, 3, figsize=(40, 36))
     axes = axes.flatten()
     
     for i, (metric, ylabel) in enumerate(zip(metrics, y_labels)):
@@ -58,7 +58,7 @@ def plot_metrics_comparison(blocks, metrics_data, n_regressors):
                 values = metrics_data[n_reg][metric][block_idx]
                 for val in values:
                     plot_data.append({
-                        'N_reg': n_reg,
+                        'N_reg': n_reg if model == 'inference_based' else n_reg-1,
                         'Probability': block_labels[block_idx],
                         'Value': val,
                         'Color': palette[model_idx]
@@ -78,9 +78,9 @@ def plot_metrics_comparison(blocks, metrics_data, n_regressors):
         )
         
         ax.set_title(f'{ylabel} Comparison')
-        ax.set_ylabel(ylabel)
-        ax.set_xlabel('Probability Condition (Left/Right)')
-        ax.legend(title='N_reg')
+        ax.set_ylabel(ylabel, fontsize=20)
+        ax.set_xlabel('Pre-training Condition', fontsize=20)
+        ax.legend(title='N_reg',fontsize=20, title_fontsize=20)
         
         # Add individual data points
         sns.stripplot(
@@ -188,11 +188,11 @@ if __name__ == '__main__':
     blocks = np.array([
         [0, 0.9],[0.2, 0.8],[0.3, 0.7],[0.4, 0.6]#, [2,2]
     ])
-model = 'inference_based'
+model = 'inference_based' # 'glm_prob_switch', 'glm_prob_r', 'inference_based'
 if model == 'inference_based':
     n_regressors = [1,2,3,4,5]
 else:
-    n_regressors = [2,3,5,7,10]
+    n_regressors = [2,3,4,7,10]
 
 metrics_data = {
     n_reg: {
@@ -220,8 +220,8 @@ for probs_net in blocks:
         combined_data_file = os.path.join(data_dir, 'all_subjects_data.csv')
         combined_glm_data = os.path.join(glm_dir, 'all_subjects_glm_regressors.csv')
         if os.path.exists(combined_glm_metrics):
-            df = pd.read_csv(combined_glm_metrics)
-            df_data = pd.read_csv(combined_glm_data)
+            df = pd.read_csv(combined_glm_metrics, low_memory=False)
+            df_data = pd.read_csv(combined_glm_data,low_memory=False)
             bad_nets = filter_df_performance(df,combined_data_file)
             df = df[~df['seed'].isin(bad_nets)]
             #To just plot one point for each seed, comment to see all cross-validation cases
@@ -234,8 +234,8 @@ for probs_net in blocks:
             metrics_data[n_reg]['probs_net'].append(probs_net)
         else:
             print(f"Metrics file not found: {combined_glm_metrics}")
-#plot_metrics_comparison(blocks, metrics_data, n_regressors)
-plot_metrics_variance(blocks, metrics_data, n_regressors)
+plot_metrics_comparison(blocks, metrics_data, n_regressors)
+#plot_metrics_variance(blocks, metrics_data, n_regressors)
 
 
 

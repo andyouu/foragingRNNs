@@ -768,8 +768,11 @@ if __name__ == '__main__':
             probs_task.append(blocks[j])
 
     print("Selected blocks:", probs_task)
-    probs_net = np.array([[0.2, 0.8],[0.8, 0.2]])
-    # to avaluate on the same enviroment than the training
+    probs_net = np.array([[0.0, 0.9],[0.9, 0.0]])
+    # probs_net = np.array([[0.2, 0.8],[0.8, 0.2]])
+    # probs_net = np.array([[0.3, 0.7],[0.7, 0.3]])
+    # probs_net = np.array([[0.4, 0.6],[0.6, 0.4]])
+    # # to avaluate on the same enviroment than the training
     #probs_task = [np.array([0.3, 0.7]), np.array([0.7, 0.3])]
     #env.reset()
     #Change ForagingBlocks for whatever TASK teh network is doing
@@ -783,16 +786,16 @@ if __name__ == '__main__':
     # Check if analysis_results.pkl exists in the main folder
     model = 'glm_prob_switch'  # 'glm_prob_r', 'inference_based', 'glm_prob_switch'
     n_regressors = 10
-    n_back = 3
+    n_back = 4
     data_dir = os.path.join(folder, f'analysis_data_{model}')
 
     #Control
     Redo_data = 0
-    Redo_glm = 0
+    Redo_glm = 1
     Plot_weights = 0
     Plot_performance = 0
     Plot_raster = 0
-    Trig_switch = 1
+    Trig_switch = 0
     if Redo_data or not os.path.exists(data_dir):
         if not os.path.exists(data_dir):
             os.makedirs(data_dir)
@@ -804,7 +807,7 @@ if __name__ == '__main__':
         data_creation(data_dir = data_dir, load_folder=folder, num_steps_exp=100000, verbose=False, probs_task=probs_task)
     combined_data_file = os.path.join(data_dir, 'all_subjects_data.csv')
 
-    if model == 'glm_prob_switch':
+    if model == 'inference_based':
         glm_dir = os.path.join(folder, f'{model}_weights_{n_back}')
     else:
         glm_dir = os.path.join(folder, f'{model}_weights_{n_regressors}')
