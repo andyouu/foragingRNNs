@@ -45,20 +45,22 @@ def plot_metrics_comparison(blocks, metrics_data, n_regressors):
     metrics = ['log_likelihood_per_obs', 'BIC', 'accuracy']
     y_labels = ['Log Likelihood per Obs', 'BIC', 'Accuracy']
     
-    fig, axes = plt.subplots(1, 3, figsize=(40, 36))
-    axes = axes.flatten()
-    
+
     for i, (metric, ylabel) in enumerate(zip(metrics, y_labels)):
-        ax = axes[i]
+        
+        # Create figure with specified size
+        fig, ax = plt.subplots(figsize=(40, 36))  # Changed from plt.figure to plt.subplots for consistency
         
         # Prepare data for this metric
         plot_data = []
         for model_idx, n_reg in enumerate(n_regressors):
             for block_idx, block in enumerate(blocks):
                 values = metrics_data[n_reg][metric][block_idx]
+                trials_back = n_reg if model == 'inference_based' else n_reg-1  # Moved outside inner loop
+                
                 for val in values:
                     plot_data.append({
-                        'N_reg': n_reg if model == 'inference_based' else n_reg-1,
+                        'Trials back': trials_back,
                         'Probability': block_labels[block_idx],
                         'Value': val,
                         'Color': palette[model_idx]
@@ -66,43 +68,73 @@ def plot_metrics_comparison(blocks, metrics_data, n_regressors):
         
         df_plot = pd.DataFrame(plot_data)
         
-        # Create plot
+        # Create boxplot
         sns.boxplot(
             x='Probability', 
             y='Value', 
-            hue='N_reg',
+            hue='Trials back',  # Fixed typo from 'Trials back'
             data=df_plot,
             ax=ax,
             palette=palette,
-            width=0.6
+            width=0.6,
+            linewidth=2.5,
+            fliersize=10  # Size of outlier markers
         )
         
-        ax.set_title(f'{ylabel} Comparison')
-        ax.set_ylabel(ylabel, fontsize=20)
-        ax.set_xlabel('Pre-training Condition', fontsize=20)
-        ax.legend(title='N_reg',fontsize=20, title_fontsize=20)
-        
-        # Add individual data points
+        # Add individual data points (strip plot)
         sns.stripplot(
             x='Probability',
             y='Value',
-            hue='N_reg',
+            hue='Trials back',  # Consistent with boxplot
             data=df_plot,
             ax=ax,
             dodge=True,
             palette=palette,
             alpha=0.5,
             edgecolor='gray',
-            linewidth=0.5,
-            jitter=True
+            linewidth=0.5, 
+            jitter=0.2,  # Added specific jitter amount
+            size=10  # Added point size
         )
         
-        # Improve layout
-        ax.grid(True, alpha=0.3)
+        # Set title and labels
+        ax.set_title(
+            f'{ylabel} Comparison',
+            fontsize=45,
+            pad=20
+        )
+        ax.set_ylabel(
+            ylabel,
+            fontsize=50,
+            labelpad=15
+        )
+        ax.set_xlabel(
+            'Pre-training Condition',
+            fontsize=50,
+            labelpad=15
+        )
+        
+        # Customize legend
+        handles, labels = ax.get_legend_handles_labels()
+        n_categories = len(n_regressors)  # Number of unique 'Trials back' categories
+        ax.legend(
+            handles[:n_categories],  # Only show one set of legend entries (avoid duplicate from stripplot)
+            labels[:n_categories],
+            title='Trials back',
+            fontsize=30,
+            title_fontsize=30,
+            framealpha=1,
+            loc='best'  # Let matplotlib choose optimal position
+        )
+        
+        # Adjust tick parameters and grid
+        ax.tick_params(axis='both', which='major', labelsize=35)
+        ax.grid(True, alpha=0.3, linestyle='--')
+        
+        # Final adjustments
         sns.despine(ax=ax)
-    
-    plt.tight_layout()
-    plt.show()
+        plt.tight_layout(pad=3.0)  # Added extra padding
+        plt.show()
 
 def plot_metrics_variance(blocks, metrics_data, model_names):
     """
@@ -188,7 +220,7 @@ if __name__ == '__main__':
     blocks = np.array([
         [0, 0.9],[0.2, 0.8],[0.3, 0.7],[0.4, 0.6]#, [2,2]
     ])
-model = 'inference_based' # 'glm_prob_switch', 'glm_prob_r', 'inference_based'
+model = 'glm_prob_switch' # 'glm_prob_switch', 'glm_prob_r', 'inference_based'
 if model == 'inference_based':
     n_regressors = [1,2,3,4,5]
 else:

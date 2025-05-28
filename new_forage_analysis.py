@@ -190,7 +190,7 @@ def data_creation(data_dir,load_folder, num_steps_exp, verbose, probs_task):
     combined_df.to_csv(combined_data_file, index=False)
 
 
-def weights_computation(model, data_dir, glm_dir, n_regressors,n_back):
+def weights_computation(model, data_dir, glm_dir,n_back):
     df = pd.read_csv(data_dir, sep=',', low_memory=False)
     combined_glm_file = os.path.join(glm_dir, 'all_subjects_weights.csv')
     combined_glm_data = os.path.join(glm_dir, 'all_subjects_glm_regressors.csv')
@@ -232,13 +232,17 @@ def weights_computation(model, data_dir, glm_dir, n_regressors,n_back):
             df_net.loc[test_idx, 'split_label'] = test_label    
             try:                                        
                 if model == 'glm_prob_r':
-                    GLM_df, regressors_string,df_regressors,df_metrics= glm_prob_r_analysis(df_net,split,n_regressors)
+                    GLM_df, regressors_string,df_regressors,df_metrics= glm_prob_r_analysis(df_net,split,n_back)
                 
                 elif model == 'glm_prob_switch':
-                    GLM_df, regressors_string, df_regressors, df_metrics = glm_switch_analysis(df_net,split,n_regressors)
+                    GLM_df, regressors_string, df_regressors, df_metrics = glm_switch_analysis(df_net,split,n_back)
 
                 elif model == 'inference_based':
-                    GLM_df, regressors_string, df_regressors, df_metrics = inference_data(df_net,split,n_back=n_back) 
+                    GLM_df, regressors_string, df_regressors, df_metrics = inference_data(df_net,split,n_back=n_back,v2= False)
+
+                elif model == 'inference_based_v2':
+                    GLM_df, regressors_string, df_regressors, df_metrics = inference_data(df_net,split,n_back=n_back,v2= True)
+
                 df_glm = GLM_df.copy()
                 df_glm['seed'] = net
                 df_regressors['seed'] = net
@@ -296,7 +300,7 @@ def plotting_w(model,glm_dir, data_dir, n_regressors):
             plot_GLM_prob_switch(ax,  df[df['seed']== net], 1)
             psychometric_data(ax1, orig_data[orig_data['seed']== net], df[df['seed']== net],regressors_string,'switch_num')
             ax1.set_ylabel('Prob of switching')
-        elif model == 'inference_based':
+        elif model in ['inference_based', 'inference_based_v2']:
             plot_inference_prob_r(ax, df[df['seed']== net], 1)
             psychometric_data(ax1,orig_data[orig_data['seed']== net],df[df['seed']== net], regressors_string,'choice')
             ax1.set_ylabel('Prob of going right')
@@ -768,8 +772,13 @@ if __name__ == '__main__':
             probs_task.append(blocks[j])
 
     print("Selected blocks:", probs_task)
-    probs_net = np.array([[0.0, 0.9],[0.9, 0.0]])
-    # probs_net = np.array([[0.2, 0.8],[0.8, 0.2]])
+    probss_net = np.array([[0.0, 0.9],[0.9, 0.0]])
+    model = 'inference_based'  # 'glm_prob_r', 'inference_based', 'glm_prob_switch'
+    prob_nets = [np.array([[0.3, 0.7],[0.7, 0.3]]),
+                  np.array([[0.4, 0.6],[0.6, 0.4]]),
+                  np.array([[0.2, 0.8],[0.8, 0.2]])]
+                 # np.array([[0.0, 0.9],[0.9, 0.0]])]
+    probs_net = np.array([[0.4, 0.6],[0.6, 0.4]])
     # probs_net = np.array([[0.3, 0.7],[0.7, 0.3]])
     # probs_net = np.array([[0.4, 0.6],[0.6, 0.4]])
     # # to avaluate on the same enviroment than the training
@@ -784,9 +793,9 @@ if __name__ == '__main__':
         folder = (f"{main_folder}/ForagingBlocks_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
                     f"d{dec_dur}_"f"prb_task_seed_{seed_task}")
     # Check if analysis_results.pkl exists in the main folder
-    model = 'glm_prob_switch'  # 'glm_prob_r', 'inference_based', 'glm_prob_switch'
-    n_regressors = 10
-    n_back = 4
+    
+    #n_regressors = 10
+    #n_back = 5
     data_dir = os.path.join(folder, f'analysis_data_{model}')
 
     #Control
@@ -796,6 +805,7 @@ if __name__ == '__main__':
     Plot_performance = 0
     Plot_raster = 0
     Trig_switch = 0
+
     if Redo_data or not os.path.exists(data_dir):
         if not os.path.exists(data_dir):
             os.makedirs(data_dir)
@@ -804,13 +814,17 @@ if __name__ == '__main__':
             for file in os.listdir(data_dir):
                 if file.endswith('data.csv'):
                     os.remove(os.path.join(data_dir, file))
-        data_creation(data_dir = data_dir, load_folder=folder, num_steps_exp=100000, verbose=False, probs_task=probs_task)
+        data_creation(data_dir = data_dir, load_folder=folder, num_steps_exp=1000000, verbose=False, probs_task=probs_task)
     combined_data_file = os.path.join(data_dir, 'all_subjects_data.csv')
-
     if model == 'inference_based':
-        glm_dir = os.path.join(folder, f'{model}_weights_{n_back}')
+        n_regressors = [1,2,3,4,5]
+    else: n_regressors = [2,3,4,7,10]
+    #for n_back in n_regressors:
+    n_back = 3
+    if model == 'inference_based_v2':
+        glm_dir = os.path.join(folder, f'{model}_weights')
     else:
-        glm_dir = os.path.join(folder, f'{model}_weights_{n_regressors}')
+        glm_dir = os.path.join(folder, f'{model}_weights_{n_back}')
     if Redo_glm or not os.path.exists(glm_dir):
         if not os.path.exists(glm_dir):
             os.makedirs(glm_dir)
@@ -819,13 +833,13 @@ if __name__ == '__main__':
             for file in os.listdir(glm_dir):
                 if file.endswith('weights.csv') or file.endswith('metrics.csv') or file.endswith('regressors.csv'):
                     os.remove(os.path.join(glm_dir, file))
-        weights_computation(model = model, data_dir = combined_data_file, glm_dir = glm_dir, n_regressors = n_regressors, n_back = n_back)
+        weights_computation(model = model, data_dir = combined_data_file, glm_dir = glm_dir, n_back = n_back)
 
     combined_glm_file = os.path.join(glm_dir, 'all_subjects_weights.csv')
     combined_glm_data = os.path.join(glm_dir, 'all_subjects_glm_regressors.csv')
     combined_glm_metrics = os.path.join(glm_dir, 'all_subjects_glm_metrics.csv')
     if Plot_weights:
-        plotting_w(model = model, glm_dir = combined_glm_file, data_dir=combined_glm_data, n_regressors = n_regressors)
+        plotting_w(model = model, glm_dir = combined_glm_file, data_dir=combined_glm_data, n_regressors = n_back)
 
     if Plot_performance:
         plotting_perf(data_dir = combined_data_file)

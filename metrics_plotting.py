@@ -243,6 +243,11 @@ def plot_metrics_comparison(blocks, metrics_data, model_names):
     label_fontsize = 50
     legend_fontsize = 20  # Slightly smaller for inside placement
     tick_fontsize = 25
+    # Plot n_trials
+    plt.figure(figsize=(10, 6))  # Slightly smaller for single plot
+    plot_metric(blocks, metrics_data, model_names, 'n_trials', 'n_trials', 
+               palette, block_labels, title_fontsize, label_fontsize, legend_fontsize, tick_fontsize)
+    plt.tight_layout()
     
     # Plot BIC
     plt.figure(figsize=(10, 6))  # Slightly smaller for single plot
@@ -461,6 +466,8 @@ def plot_combined_switch_analysis(data_dir, window, probs):
     for i, train in enumerate(np.unique(df['training_block'])):
         # Initialize lists to store all aligned data
         t_df = df[df['training_block'] == train].reset_index(drop=True)
+        if switchy == 1:
+            t_df = df[:int(0.6*len(t_df))]  # Keep only the first 80% of trials
         all_outcome = []
         all_switches = []
         subject_means = []
@@ -540,7 +547,7 @@ def plot_combined_switch_analysis(data_dir, window, probs):
     
     # --- Reference lines ---
     ax.axhline(0.5, linestyle='--', color='gray', label='Chance')
-    ax.set_ylabel('Average Outcome',size=label_fontsize)
+    ax.set_ylabel('Average Performance',size=label_fontsize)
     ax.set_ylim(0.3, 0.7)
     plt.yticks(fontsize=tick_fontsize)
     plt.xticks(fontsize=tick_fontsize)
@@ -569,24 +576,33 @@ if __name__ == '__main__':
             'log_likelihood_per_obs': [],
             'BIC': [],
             'AIC': [],
+            'n_trials': [],
             'accuracy': []
         },
         'glm_prob_r': {
             'log_likelihood_per_obs': [],
             'BIC': [],
             'AIC': [],
+            'n_trials': [],
             'accuracy': []
         },
         'inference_based': {
             'log_likelihood_per_obs': [],
             'BIC': [],
             'AIC': [],
+            'n_trials': [],
             'accuracy': []
-        }
+        },
+        # 'inference_based_v2': {
+        #     'log_likelihood_per_obs': [],
+        #     'BIC': [],
+        #     'AIC': [],
+        #     'accuracy': []
+        # }
     }
-    
-    for model in ['glm_prob_switch', 'glm_prob_r', 'inference_based']:
-        data_file_total = []
+    data_file_total = []
+    for model in ['glm_prob_switch', 'glm_prob_r', 'inference_based']:#, 'inference_based_v2']:
+
         for probs_net in blocks:
             folder = (f"{main_folder}/ForagingBlocks_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
                      f"d{dec_dur}_prb{probs_net[0]}{probs_net[1]}")
@@ -597,6 +613,8 @@ if __name__ == '__main__':
                     f"d{dec_dur}_"f"prb_task_seed_{seed_task}")
             if(model == 'inference_based'):
                 glm_dir = os.path.join(folder, f'{model}_weights_{n_back}')
+            elif(model == 'inference_based_v2'):
+                glm_dir = os.path.join(folder, f'{model}_weights')
             else:
                 glm_dir = os.path.join(folder, f'{model}_weights_{n_regressors}')
             data_dir = os.path.join(folder, f'analysis_data_{model}')
@@ -617,6 +635,7 @@ if __name__ == '__main__':
                 df = df.groupby('seed').mean()
                 # Store metrics
                 metrics_data[model]['log_likelihood_per_obs'].append(df['log_likelihood_per_obs'].values)
+                metrics_data[model]['n_trials'].append(df['log_likelihood'].values/df['log_likelihood_per_obs'].values)
                 metrics_data[model]['BIC'].append(df['BIC'].values)
                 metrics_data[model]['AIC'].append(df['AIC'].values)
                 metrics_data[model]['accuracy'].append(df['accuracy'].values)
@@ -631,11 +650,12 @@ if __name__ == '__main__':
     # Generate plots
     # Combine data for plotting
     combined_data = pd.concat(data_file_total, ignore_index=True)
-    plot_metrics_comparison(blocks, metrics_data, ['glm_prob_switch', 'glm_prob_r', 'inference_based'])
-    plot_performance_comparison(combined_data,combined_data_file)
     plot_combined_switch_analysis(combined_data, 10, blocks[0][0])
     plot_perf_psychos(combined_data)
-    plot_metrics_variance(blocks, metrics_data, ['glm_prob_switch', 'glm_prob_r', 'inference_based'])
+    plot_metrics_comparison(blocks, metrics_data, ['glm_prob_switch', 'glm_prob_r', 'inference_based'])#, 'inference_based_v2'])
+    plot_performance_comparison(combined_data,combined_data_file)
+    plot_perf_psychos(combined_data)
+    plot_metrics_variance(blocks, metrics_data, ['glm_prob_switch', 'glm_prob_r', 'inference_based'])#, 'inference_based_v2'])
 
 
 

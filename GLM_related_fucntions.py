@@ -187,6 +187,9 @@ def glm_prob_r_analysis(df,split,n_regressors):
         'conf_Interval_High': mM_logit.conf_int()[1]
     })
     df_test['pred_prob'] = mM_logit.predict(df_test)
+    df_test['pred_prob'].hist(bins=30)
+    plt.xlabel('Predicted Probability')
+    plt.ylabel('Frequency')
     #Create a DataFrame with the avaluation metrics
     y_true = df_test['choice'][n_regressors:]   # True binary outcomes
     y_pred_prob = mM_logit.predict(df_test)[n_regressors:]  # Predicted probabilities (change this tot the test set)
@@ -408,8 +411,9 @@ def glm_switch_analysis(df,split,n_regressors):
     np.random.seed(42) 
     y_pred_class_mult = (np.random.rand(len(y_pred_prob)) < y_pred_prob).astype(int) # We may use the multinomial here to choose with probability (sampling)
     #compute BIC from the log-likelihood
-    # Compute BIC from the log-likelihood
-    # BIC = -2 * log-likelihood + k * log(n)
+    df_test['pred_prob'].hist(bins=30)
+    plt.xlabel('Predicted Probability')
+    plt.ylabel('Frequency')
     metrics_dict = {
         # Log-likelihood
         "log_likelihood": mM_logit.llf,

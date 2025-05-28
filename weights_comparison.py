@@ -3,6 +3,7 @@ import seaborn as sns
 import numpy as np
 import pandas as pd
 import os
+import scipy
 import matplotlib.patches as mpatches
 import matplotlib.lines as mlines
 from matplotlib.colors import LinearSegmentedColormap
@@ -110,6 +111,7 @@ def prob_r_plot_single_block(ax, n_reg, block, combined_df, plus_color, minus_co
         
         # Get precomputed p-value
         p_val = reg_df['p_value'].mean()
+        p_val = scipy.stats.combine_pvalues(reg_df['p_value'], method='stouffer')[1]
         
         # Add significance stars
         sig = get_significance_stars(p_val)
@@ -137,6 +139,7 @@ def prob_r_plot_single_block(ax, n_reg, block, combined_df, plus_color, minus_co
         
         # Get precomputed p-value
         p_val = reg_df['p_value'].mean()
+        p_val = scipy.stats.combine_pvalues(reg_df['p_value'], method='stouffer')[1]
         
         # Add significance stars
         sig = get_significance_stars(p_val)
@@ -164,6 +167,7 @@ def prob_r_plot_single_block(ax, n_reg, block, combined_df, plus_color, minus_co
         
         # Get precomputed p-value
         p_val = reg_df['p_value'].mean()
+        p_val = scipy.stats.combine_pvalues(reg_df['p_value'], method='stouffer')[1]
         
         # Add significance stars
         sig = get_significance_stars(p_val)
@@ -420,6 +424,7 @@ def prob_switch_plot_single_block(ax, n_reg, block, combined_df, summary_data):
         
         # Add significance marker
         p_val = reg_df['p_value'].mean()
+        p_val = scipy.stats.combine_pvalues(reg_df['p_value'], method='stouffer')[1]
         sig = get_significance_stars(p_val)
         y_max = np.max(data)
         ax.text(intercept_pos[i], y_max + 0.1*np.abs(y_max), sig, 
@@ -440,6 +445,7 @@ def prob_switch_plot_single_block(ax, n_reg, block, combined_df, summary_data):
         plt.setp(bp['medians'], color='white', linewidth=1.5)
         
         p_val = reg_df['p_value'].mean()
+        p_val = scipy.stats.combine_pvalues(reg_df['p_value'], method='stouffer')[1]
         sig = get_significance_stars(p_val)
         y_max = np.max(data)
         ax.text(last_trial_pos[i], y_max + 0.1*np.abs(y_max), sig, 
@@ -459,6 +465,7 @@ def prob_switch_plot_single_block(ax, n_reg, block, combined_df, summary_data):
         plt.setp(bp['medians'], color='white', linewidth=1.5)
         
         p_val = reg_df['p_value'].mean()
+        p_val = scipy.stats.combine_pvalues(reg_df['p_value'], method='stouffer')[1]
         sig = get_significance_stars(p_val)
         y_max = np.max(data)
         ax.text(rss_plus_pos[i], y_max + 0.1*np.abs(y_max), sig, 
@@ -478,6 +485,7 @@ def prob_switch_plot_single_block(ax, n_reg, block, combined_df, summary_data):
         plt.setp(bp['medians'], color='white', linewidth=1.5)
         
         p_val = reg_df['p_value'].mean()
+        p_val = scipy.stats.combine_pvalues(reg_df['p_value'], method='stouffer')[1]
         sig = get_significance_stars(p_val)
         y_max = np.max(data)
         ax.text(rds_plus_pos[i], y_max + 0.1*np.abs(y_max), sig, 
@@ -497,6 +505,7 @@ def prob_switch_plot_single_block(ax, n_reg, block, combined_df, summary_data):
         plt.setp(bp['medians'], color='white', linewidth=1.5)
         
         p_val = reg_df['p_value'].mean()
+        p_val = scipy.stats.combine_pvalues(reg_df['p_value'], method='stouffer')[1]
         sig = get_significance_stars(p_val)
         y_max = np.max(data)
         ax.text(rss_minus_pos[i], y_max + 0.1*np.abs(y_max), sig, 
@@ -587,7 +596,7 @@ def prob_switch_plot_summary(n_reg, blocks, summary_data):
     
     # Plot each probability block
     alpha = 1
-    x_pos = np.arange(0, n_reg+1)  # Starting at 0 for intercept
+    x_pos = np.arange(0, n_reg+2)  # Starting at 0 for intercept
     
     for block in blocks:
         # Plot intercept average
@@ -633,7 +642,7 @@ def prob_switch_plot_summary(n_reg, blocks, summary_data):
         alpha -= 0.2
     
     # Set x-ticks
-    plt.xticks(x_pos, ['Intercept'] + [str(i) for i in range(1, n_reg+1)], 
+    plt.xticks(x_pos, ['Intercept'] + [str(i) for i in range(1, n_reg+2)], 
               fontsize=tick_fontsize)
     
     plt.yticks(fontsize=tick_fontsize)
@@ -644,7 +653,7 @@ def prob_switch_plot_summary(n_reg, blocks, summary_data):
     
     # Create legend
     legend = plt.legend(handles=legend_handles,
-                      loc='best',
+                      loc='lower right',
                       title="Regressor Type / Probability",
                       framealpha=0.8,
                       fontsize=legend_fontsize)
@@ -730,6 +739,7 @@ def inf_based_plot_single_block(ax, n_reg, block, combined_df, summary_data):
         
         # Add significance marker
         p_val = reg_df['p_value'].mean()
+        p_val = scipy.stats.combine_pvalues(reg_df['p_value'], method='stouffer')[1]
         sig = get_significance_stars(p_val)
         y_max = np.max(data)
         ax.text(intercept_pos[i], y_max + 0.1*np.abs(y_max), sig, 
@@ -751,6 +761,7 @@ def inf_based_plot_single_block(ax, n_reg, block, combined_df, summary_data):
         plt.setp(bp['medians'], color='white', linewidth=1.5)
         
         p_val = reg_df['p_value'].mean()
+        p_val = scipy.stats.combine_pvalues(reg_df['p_value'], method='stouffer')[1]
         sig = get_significance_stars(p_val)
         y_max = np.max(data)
         ax.text(v_pos[i], y_max + 0.1*np.abs(y_max), sig, 
@@ -771,6 +782,7 @@ def inf_based_plot_single_block(ax, n_reg, block, combined_df, summary_data):
         plt.setp(bp['medians'], color='white', linewidth=1.5)
         
         p_val = reg_df['p_value'].mean()
+        p_val = scipy.stats.combine_pvalues(reg_df['p_value'], method='stouffer')[1]
         sig = get_significance_stars(p_val)
         y_max = np.max(data)
         ax.text(s_pos[i], y_max + 0.1*np.abs(y_max), sig, 
@@ -855,12 +867,12 @@ def inf_based_plot_summary(n_reg, blocks, summary_data, combined_df):
         # Get p-values (averaged across regressors of each type)
         block_mask = (combined_df['n_regressors'] == n_reg) & (combined_df['probability_block'] == block[0])
         
-        intercept_p = np.mean(combined_df[block_mask & 
-                                        combined_df['regressor'].str.contains('intercept', case=False)]['p_value'])
-        beta_p = np.mean(combined_df[block_mask & 
-                                   combined_df['regressor'].str.contains('V_t')]['p_value'])
-        side_p = np.mean(combined_df[block_mask & 
-                                   combined_df['regressor'].str.contains('side_num')]['p_value'])
+        intercept_p = scipy.stats.combine_pvalues(combined_df[block_mask & 
+                                        combined_df['regressor'].str.contains('intercept', case=False)]['p_value'], method='stouffer')[1]
+        beta_p = scipy.stats.combine_pvalues(combined_df[block_mask & 
+                                   combined_df['regressor'].str.contains('V_t')]['p_value'], method='stouffer')[1]
+        side_p = scipy.stats.combine_pvalues(combined_df[block_mask & 
+                                   combined_df['regressor'].str.contains('side_num')]['p_value'], method='stouffer')[1]
         
         # Plot bars with probability-specific alpha
         bar_width = 0.2
@@ -894,9 +906,9 @@ def inf_based_plot_summary(n_reg, blocks, summary_data, combined_df):
     ax.set_ylabel('Coefficient Value', labelpad=20)
     
     # Set x-ticks as probability values
-    prob_labels = [f'p={block[0]:.2f}/{block[1]:.2f}' for block in prob_blocks]
+    prob_labels = [f'{block[0]:.2f}/{block[1]:.2f}' for block in prob_blocks]
     ax.set_xticks(np.arange(n_probs))
-    ax.set_xticklabels(prob_labels, rotation=45, ha='right', fontsize=30)
+    ax.set_xticklabels(prob_labels, fontsize=30)
     ax.grid(True, axis='y', linestyle=':', alpha=0.3)
     
     # Create simplified legends
@@ -935,7 +947,7 @@ if __name__ == '__main__':
         #not considering the custom block fot this plots because of confusion
         [0, 0.9],[0.2, 0.8],[0.3, 0.7],[0.4, 0.6]#, [2,2]
     ])
-model = 'inference_based'  # or 'glm_prob_r' or 'inference_based'
+model = 'glm_prob_switch'  # or 'glm_prob_r' or 'inference_based'
 if model == 'inference_based':
     n_regressors = [1,2,3,4,5]
 else:
@@ -959,7 +971,9 @@ for n_reg in n_regressors:
         if os.path.exists(combined_glm_file):
             df = pd.read_csv(combined_glm_file,low_memory=False)
             df_data = pd.read_csv(combined_glm_data, low_memory=False)
+            df_median = df.groupby(['seed', 'regressor'])['p_value'].median().reset_index()    
             df = df.groupby(['seed', 'regressor'])[['coefficient','std_err','z_value','p_value','conf_Interval_Low','conf_Interval_High']].mean().reset_index()
+            df['p_value'] = df_median['p_value']
             bad_nets = filter_df_performance(combined_data_file)
             df = df[~df['seed'].isin(bad_nets)]
             df['probability_block'] = probs_net[0]
@@ -972,7 +986,7 @@ if model == 'glm_prob_r':
     prob_r_plot_weights_comparison(n_regressors,blocks,combined_df)
 elif model == 'glm_prob_switch':
     prob_switch_plot_weights_comparison(n_regressors,blocks,combined_df)
-elif model == 'inference_based':
+elif model in ['inference_based', 'inference_based_v2']:
     inf_based_plot_weights_comparison(n_regressors,blocks,combined_df)
 
 

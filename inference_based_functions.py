@@ -190,6 +190,83 @@ def manual_computation(df: pd.DataFrame, n_back: int) -> pd.DataFrame:
     #return all but last bc it contanis a nan
     return new_df[:-1]
 
+def manual_computation_v2(df: pd.DataFrame, p_SW: float, p_RWD: float) -> pd.DataFrame:
+    """
+    Compute V_t based on the recursive equations for R_t and the given parameters.
+    
+    Args:
+        df: Input DataFrame containing trial data
+        p_SW: Probability of switching from active to inactive state
+        p_RWD: Probability of reward in active state
+        p_RW0: Base probability parameter for V_t computation
+        
+    Returns:
+        DataFrame with computed V_t values and intermediate calculations
+    """
+    # Select relevant columns and create a working copy
+    select_columns = ['reward', 'actions', 'iti', 'prob_r', 'split_label']
+    df_glm = df.loc[:, select_columns].copy()
+    
+    # Transform actions (originally 2=left, 3=right) to binary choice (0=left, 1=right)
+    df_glm['outcome_bool'] = df_glm['reward']  # Copy reward as boolean outcome
+    df_glm['choice'] = df_glm['actions'] - 2   # Convert actions to 0/1
+    df_glm.loc[df_glm['choice'] < 0, 'choice'] = np.nan  # Handle invalid values
+    
+    # Reset index and create new working dataframe
+    df = df_glm.reset_index(drop=True)
+    new_df = df.copy()
+    new_df = new_df.dropna(subset=['choice']).reset_index(drop=True)
+    
+    # Prepare columns for side and choice tracking
+    new_df['choice_1'] = new_df['choice'].shift(-1)
+    new_df.loc[(new_df['choice_1'] == 0), 'side_num'] = -1
+    new_df.loc[(new_df['choice_1'] == 1), 'side_num'] = 1
+    
+    # Initialize variables for the recursive computation
+    new_df['R_t'] = 0.0
+    new_df['V_t'] = 0.0
+    new_df['same_site'] = (new_df['choice'] == new_df['choice'].shift(1)).astype(int)
+    new_df.loc[0, 'same_site'] = 0  # First trial has no previous site
+    
+    # Compute rho parameter
+    rho = 1 / ((1 - p_SW) * (1 - p_RWD))
+    
+    # Iterate through trials to compute R_t and V_t
+    for t in range(len(new_df)):
+        if t == 0:
+            # First trial starts with R_t = 0
+            new_df.at[t, 'R_t'] = 0.0
+        else:
+            if new_df.at[t, 'reward']:
+                # Reward resets R_t to 0
+                new_df.at[t, 'R_t'] = 0.0
+            else:
+                if new_df.at[t, 'same_site']:
+                    # Same site: apply the recursive equation
+                    prev_R = new_df.at[t-1, 'R_t']
+                    new_df.at[t, 'R_t'] = rho * (prev_R + p_SW)
+                else:
+                    # Different site: need to handle site switching (implementation depends on specific requirements)
+                    # This is a placeholder - you may need to adjust based on how site switching affects R_t
+                    prev_R = new_df.at[t-1, 'R_t']
+                    #new_df.at[t, 'R_t'] = ((prev_R + p_SW) / (1 - p_SW)) * (1 / (1 - p_RWD))
+                    new_df.at[t, 'R_t'] = prev_R
+
+        
+        # Compute V_t from R_t
+        R_t = new_df.at[t, 'R_t']
+        if R_t == 0:
+            new_df.at[t, 'V_t'] = new_df.at[t, 'side_num'] * p_RWD
+        elif R_t == new_df.at[t-1, 'R_t']:
+            new_df.at[t, 'V_t'] = -new_df.at[t, 'side_num'] * p_RWD
+        else:
+            new_df.at[t, 'V_t'] = p_RWD * (1 - 2 / (R_t**(-new_df.at[t, 'side_num']) + 1))
+    #plot histogram of V_t
+    # new_df['V_t'].hist(bins=30)
+    # plt.show()
+    
+    return new_df[:-1]
+
 
 def psychometric_fit(ax,df_glm_mice):
     n_bins = 10
@@ -231,109 +308,6 @@ def psychometric_fit(ax,df_glm_mice):
     #ax.plot(ev_means, psychometric(ev_means), color='grey', alpha = 0.5)
     ax.plot(ev_means_20, p_right_mean_20, marker = 'o', color = 'black',label = 'Data', alpha = phi)
 
-
-def metric_computation_brut_force(df):
-    # Prepare data - assuming columns:
-    # 'V_t': Expected value difference (V_right - V_left)
-    # 'side_num': Side indicator (-1=left, 1=right)
-    # 'choice': 0=left, 1=right
-    
-    V_t = df['V_t'].values  # Should be V_right - V_left
-    s = df['side_num'].values
-    true_choices = df['choice'].values
-    histogram = 1
-    if histogram:
-        plt.figure(figsize=(10, 6))
-        
-        # Set number of bins (adjust as needed)
-        n_bins = 20  # You can change this value
-        
-        # Create histogram with specified bins
-        n, bins, patches = plt.hist(
-            df['V_t'], 
-            bins=n_bins,
-            color='skyblue',
-            edgecolor='black',
-            alpha=0.7
-        )
-        
-        # Customize plot
-        plt.title(f'Histogram of V_t Values ({n_bins} Bins)', fontsize=16)
-        plt.xlabel('V_t Value', fontsize=14)
-        plt.ylabel('Frequency', fontsize=14)
-        
-        # Format x-axis labels
-        bin_centers = (bins[:-1] + bins[1:]) / 2
-        plt.xticks(
-            bins.round(2),  # Show bin edges
-            rotation=45,
-            ha='right'
-        )
-        
-        # Add grid and adjust layout
-        plt.grid(axis='y', alpha=0.2)
-        plt.tight_layout()
-        plt.show()
-    ll_max = -1e10  # Changed from -1e-10 to -1e10 (much larger negative number)
-    best_beta = 0
-    best_T = 0
-    epsilon = 1e-10
-
-        # Corrected grid ranges using np.arange instead of np.linspace
-          # From 0 to 100 in steps of 0.1
-    for T in np.arange(-50, 50, 1): 
-        for beta in np.arange(0, 50, 1):
-            # From -100 to 100 in steps of 0.1
-            df['pred_choice'] = softmax_prob_right(V_t, s, beta, T)
-            ll = np.sum(
-            true_choices * np.log(df['pred_choice'] + epsilon) + 
-                (1 - true_choices) * np.log(1 - df['pred_choice'] + epsilon)
-                )
-            if ll > ll_max:
-                ll_max = ll
-                best_beta = beta
-                best_T = T
-    #Further explore in a neighbourhood of the rough optim
-    for T in np.arange(best_T-1, best_T + 1, 0.05): 
-        for beta in np.arange(best_beta-1, best_beta+1, 0.05):
-            # From -100 to 100 in steps of 0.1
-            df['pred_choice'] = softmax_prob_right(V_t, s, beta, T)
-            ll = np.sum(
-            true_choices * np.log(df['pred_choice'] + epsilon) + 
-                (1 - true_choices) * np.log(1 - df['pred_choice'] + epsilon)
-                )
-            if ll > ll_max:
-                ll_max = ll
-                best_beta = beta
-                best_T = T
-
-    print('Best Beta:', best_beta, beta)
-    print('Best T:', best_T, T)
-    print('Maximum Log-Likelihood:', ll_max)
-        
-
-    # Generate predictions
-    df['pred_choice'] = softmax_prob_right(V_t, s, best_beta, best_T)
-    
-    # Calculate metrics
-    epsilon = 1e-15
-    p = np.clip(df['pred_choice'], epsilon, 1-epsilon)
-    
-    ll = ll_max
-    k = 2  # beta and T
-    n = len(df)
-    
-    metrics_dict = {
-        "log_likelihood": ll,
-        "log_likelihood_per_obs": ll / n,
-        "accuracy": accuracy_score(true_choices, (p >= 0.5).astype(int)),
-        "AIC": 2*k - 2*ll,
-        "BIC": k*np.log(n) - 2*ll,
-        "beta": beta,
-        "temperature": T,
-    }
-    
-    return df, pd.DataFrame([metrics_dict])
 
 def plot_inference_prob_r(ax, GLM_df, alpha=1):
     orders = np.arange(len(GLM_df))
@@ -383,6 +357,10 @@ def metric_computation_optim(df,split):
     # Add predicted probabilities to dataframe
     df_test['pred_prob'] = mM_logit.predict(df_test)
     
+    #plot an histogram of the predicted probabilities
+    df_test['pred_prob'].hist(bins=30)
+    plt.xlabel('Predicted Probability')
+    plt.ylabel('Frequency')
     # Prepare true values and predictions
     y_true = df_test['choice'].values  # Using all observations
     y_pred_prob = df_test['pred_prob'].values
@@ -432,8 +410,11 @@ def metric_computation_optim(df,split):
     
     
 
-def inference_data(df,split, n_back):
-    df_values_new = manual_computation(df,n_back)
+def inference_data(df,split, n_back,v2=False):
+    if v2:
+        df_values_new = manual_computation_v2(df, p_SW=0.1, p_RWD=0.9)
+    else:
+        df_values_new = manual_computation(df,n_back)
     #to explore parameters:
     # df,GLM_metrics = metric_computation_brut_force(df_values_new)
     GLM_df, regressors_string, df_regressors, df_metrics = metric_computation_optim(df_values_new,split)
