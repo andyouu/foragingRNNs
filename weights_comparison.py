@@ -61,7 +61,9 @@ def prob_r_plot_weights_comparison(n_regressors, blocks, combined_df):
             summary_table.extend(block_table)
         
         fig.suptitle(f'GLM Weights Comparison - {n_reg} Regressors', y=1.05)
+        plt.yticks(fontsize=20)
         plt.tight_layout()
+        ax.set_yticklabels(ax.get_yticks(), fontsize=20)
         plt.show()
         
         # Create summary plot for this n_reg
@@ -111,7 +113,7 @@ def prob_r_plot_single_block(ax, n_reg, block, combined_df, plus_color, minus_co
         
         # Get precomputed p-value
         p_val = reg_df['p_value'].mean()
-        p_val = scipy.stats.combine_pvalues(reg_df['p_value'], method='stouffer')[1]
+        p_val = scipy.stats.combine_pvalues(reg_df['p_value'], method='fisher')[1]
         
         # Add significance stars
         sig = get_significance_stars(p_val)
@@ -139,7 +141,7 @@ def prob_r_plot_single_block(ax, n_reg, block, combined_df, plus_color, minus_co
         
         # Get precomputed p-value
         p_val = reg_df['p_value'].mean()
-        p_val = scipy.stats.combine_pvalues(reg_df['p_value'], method='stouffer')[1]
+        p_val = scipy.stats.combine_pvalues(reg_df['p_value'], method='fisher')[1]
         
         # Add significance stars
         sig = get_significance_stars(p_val)
@@ -167,7 +169,7 @@ def prob_r_plot_single_block(ax, n_reg, block, combined_df, plus_color, minus_co
         
         # Get precomputed p-value
         p_val = reg_df['p_value'].mean()
-        p_val = scipy.stats.combine_pvalues(reg_df['p_value'], method='stouffer')[1]
+        p_val = scipy.stats.combine_pvalues(reg_df['p_value'], method='fisher')[1]
         
         # Add significance stars
         sig = get_significance_stars(p_val)
@@ -200,24 +202,27 @@ def prob_r_plot_single_block(ax, n_reg, block, combined_df, plus_color, minus_co
     if len(plus_avgs) > 0:
         ax.plot(plus_pos, plus_avgs, color=plus_color, linewidth=2,
                marker='o', markersize=6, markeredgecolor='white',
-               label=f'r_plus ({block[0]}/{block[1]})')
+               label=r'$\beta_{t}^+$')
     if len(minus_avgs) > 0:
         ax.plot(minus_pos, minus_avgs, color=minus_color, linewidth=2,
                marker='o', markersize=6, markeredgecolor='white',
-               label=f'r_minus ({block[0]}/{block[1]})')
+               label=r'$\beta_{t}^-$')
     if len(intercept_avgs) > 0:
         ax.plot(intercept_pos, intercept_avgs, color=intercept_color, linewidth=2,
                marker='o', markersize=6, markeredgecolor='white',
-               label=f'intercept ({block[0]}/{block[1]})')
+               label='Intercept')
     
     # Formatting
     all_pos = np.concatenate([plus_pos, minus_pos, intercept_pos])
-    all_labels = r_plus + r_minus + intercepts
+    all_labels = [label.split('_')[-1] for label in r_plus] + [label.split('_')[-1] for label in r_minus] + ['0']
     ax.set_xticks(all_pos)
-    ax.set_xticklabels(all_labels, rotation=45)
-    ax.set_title(f"Block: {block[0]}/{block[1]}")
+    ax.set_xticklabels(all_labels, fontsize=20)
+    ax.set_title(f"Block: {block[0]}/{block[1]}",fontsize=30)
+    ax.tick_params(axis='y', labelsize=20)
+    ax.set_ylabel('Coefficient Value', fontsize=30)
+    ax.set_xlabel('Trials Back', fontsize=30)
     ax.axhline(0, color='gray', linestyle=':')
-    ax.legend()
+    ax.legend(fontsize=20)
     
     return block_stats
 
@@ -254,11 +259,11 @@ def prob_r_plot_summary(n_reg, blocks, summary_data, plus_color, minus_color,int
     tick_fontsize = 30
     legend_fontsize = 25
     
-    # Create legend handles
+    # Create legend handlesimage
     legend_handles = [
-        mpatches.Patch(color=plus_color, label='r_plus'),
-        mpatches.Patch(color=minus_color, label='r_minus'),
-        mpatches.Patch(color=intercept_color, label='intercept')
+        mpatches.Patch(color=plus_color, label=r'$\beta_{t}^+$'),
+        mpatches.Patch(color=minus_color, label=r'$\beta_{t}^-$'),
+        mpatches.Patch(color=intercept_color, label='Intercept')
     ]
     
     # Get all unique regressor names in order
@@ -288,19 +293,19 @@ def prob_r_plot_summary(n_reg, blocks, summary_data, plus_color, minus_color,int
         if len(summary_data[block]['plus_y']) > 0:
             plt.plot(x_pos[:len(summary_data[block]['plus_y'])], summary_data[block]['plus_y'],
                     color=plus_color, linewidth=8, alpha=alpha,
-                    marker='o', markersize=6, markeredgecolor='white')
+                    marker='o', markersize=8, markeredgecolor='white')
         
         # Plot r_minus averages using actual positions
         if len(summary_data[block]['minus_y']) > 0:
             plt.plot(x_pos[:len(summary_data[block]['minus_y'])], summary_data[block]['minus_y'],
                     color=minus_color, linewidth=8, alpha=alpha,
-                    marker='o', markersize=6, markeredgecolor='white')
+                    marker='o', markersize=8, markeredgecolor='white')
         
         # Plot intercept if it exists (at position 0)
         if len(summary_data[block]['intercept_y']) > 0:
             plt.plot([0], [summary_data[block]['intercept_y'][0]],
                     color=intercept_color, linewidth=8, alpha=alpha,
-                    marker='o', markersize=6, markeredgecolor='white')
+                    marker='o', markersize=8, markeredgecolor='white')
         
         # Add to legend
         legend_handles.append(
@@ -318,12 +323,12 @@ def prob_r_plot_summary(n_reg, blocks, summary_data, plus_color, minus_color,int
     plt.yticks(fontsize=tick_fontsize)
     plt.axhline(0, color='gray', linestyle=':', linewidth=0.8)
     plt.ylabel('Coefficient Value', fontsize=label_fontsize)
-    plt.xlabel('Regressor', fontsize=label_fontsize)
+    plt.xlabel('Tials back', fontsize=label_fontsize)
     
     # Create legend showing probability fade
     legend = plt.legend(handles=legend_handles,
                       loc='upper right',
-                      title="Regressor Type / Probability",
+                      title="Regressor / Pre-training condition",
                       framealpha=0.8,
                       fontsize=legend_fontsize)
     legend.get_title().set_fontsize(legend_fontsize)
@@ -540,32 +545,36 @@ def prob_switch_plot_single_block(ax, n_reg, block, combined_df, summary_data):
     if len(intercept_avgs) > 0:
         ax.plot(intercept_pos, intercept_avgs, color=intercept_color, linewidth=2,
                marker='o', markersize=6, markeredgecolor='white',
-               label=f'intercept ({block[0]}/{block[1]})')
+               label='Intercept')
     if len(last_trial_avgs) > 0:
         ax.plot(last_trial_pos, last_trial_avgs, color=neutral_color, linewidth=2,
                marker='o', markersize=6, markeredgecolor='white',
-               label=f'last_trial ({block[0]}/{block[1]})')
+               label=r'$\gamma_k$')
     if len(rss_plus_avgs) > 0:
         ax.plot(rss_plus_pos, rss_plus_avgs, color=rss_color, linewidth=2,
                marker='o', markersize=6, markeredgecolor='white',
-               label=f'rss_plus ({block[0]}/{block[1]})')
+               label=r'$\beta_{t}^+$')
     if len(rds_plus_avgs) > 0:
         ax.plot(rds_plus_pos, rds_plus_avgs, color=rds_color, linewidth=2,
                marker='o', markersize=6, markeredgecolor='white',
-               label=f'rds_plus ({block[0]}/{block[1]})')
+               label=r'$\alpha_{t}$')
     if len(rss_minus_avgs) > 0:
         ax.plot(rss_minus_pos, rss_minus_avgs, color=minus_color, linewidth=2,
                marker='o', markersize=6, markeredgecolor='white',
-               label=f'rss_minus ({block[0]}/{block[1]})')
+               label=r'$\beta_{t}^-$')
     
     # Formatting
     all_pos = np.concatenate([intercept_pos, last_trial_pos, rss_plus_pos, rds_plus_pos, rss_minus_pos])
     all_labels = intercepts + last_trial + rss_plus + rds_plus + rss_minus
+    all_labels = ['I'] + ['1']+[f'{i}' for i in np.arange(2, n_reg+1)] +  [f'{i}' for i in np.arange(2, n_reg+1)] + [f'{i}' for i in np.arange(2, n_reg+1)]
     ax.set_xticks(all_pos)
-    ax.set_xticklabels(all_labels, rotation=45)
-    ax.set_title(f"Block: {block[0]}/{block[1]}")
+    ax.set_xticklabels(all_labels, fontsize=14)
+    ax.set_ylabel('Coefficient Value', fontsize=30)
+    ax.set_xlabel('Trials Back', fontsize=30)
+    ax.tick_params(axis='y', labelsize=20)
+    ax.set_title(f"Block: {block[0]}/{block[1]}", fontsize=30)
     ax.axhline(0, color='gray', linestyle=':')
-    ax.legend()
+    ax.legend(fontsize = 15)
     
     return block_stats
 
@@ -577,21 +586,21 @@ def prob_switch_plot_summary(n_reg, blocks, summary_data):
     rss_color = '#d62728'
     rds_color = '#ff7f0e'
     minus_color = '#1f77b4'
-    neutral_color = '#7f7f7f'
+    neutral_color = '#ff69b4'
     intercept_color = '#2ca02c'
 
     title_fontsize = 50
     label_fontsize = 50
     tick_fontsize = 30
-    legend_fontsize = 25
+    legend_fontsize = 18
     
     # Create legend handles
     legend_handles = [
-        mpatches.Patch(color=intercept_color, label='intercept'),
-        mpatches.Patch(color=neutral_color, label='last_trial'),
-        mpatches.Patch(color=rss_color, label='rss_plus'),
-        mpatches.Patch(color=rds_color, label='rds_plus'),
-        mpatches.Patch(color=minus_color, label='rss_minus')
+        mpatches.Patch(color=intercept_color, label='Intercept'),
+        mpatches.Patch(color=neutral_color, label=r'$\gamma_k$'),
+        mpatches.Patch(color=rss_color, label=r'$\beta_{t}^+$'),
+        mpatches.Patch(color=rds_color, label=r'$\alpha_{t}$'),
+        mpatches.Patch(color=minus_color, label=r'$\beta_{t}^-$')
     ]
     
     # Plot each probability block
@@ -649,12 +658,12 @@ def prob_switch_plot_summary(n_reg, blocks, summary_data):
     plt.axhline(0, color='gray', linestyle=':', linewidth=0.8)
     plt.title(f'Average Weights', fontsize=title_fontsize, pad=12)
     plt.ylabel('Coefficient Value', fontsize=label_fontsize)
-    plt.xlabel('Regressor', fontsize=label_fontsize)
+    plt.xlabel('Trials Back', fontsize=label_fontsize)
     
     # Create legend
     legend = plt.legend(handles=legend_handles,
                       loc='lower right',
-                      title="Regressor Type / Probability",
+                      title="Regressor / Pre-training Condition",
                       framealpha=0.8,
                       fontsize=legend_fontsize)
     legend.get_title().set_fontsize(legend_fontsize)
@@ -809,22 +818,24 @@ def inf_based_plot_single_block(ax, n_reg, block, combined_df, summary_data):
     if len(intercept_avgs) > 0:
         ax.plot(intercept_pos, intercept_avgs, color=intercept_color, linewidth=2,
                marker='o', markersize=6, markeredgecolor='white',
-               label=f'intercept ({block[0]}/{block[1]})')
+               label=f'Intercept')
     if len(v_avgs) > 0:
         ax.plot(v_pos, v_avgs, color=v_color, linewidth=2,
                marker='o', markersize=6, markeredgecolor='white',
-               label=f'V ({block[0]}/{block[1]})')
+               label=r'$\beta_k^V$')
     if len(s_avgs) > 0:
         ax.plot(s_pos, s_avgs, color=s_color, linewidth=2,
                marker='o', markersize=6, markeredgecolor='white',
-               label=f's ({block[0]}/{block[1]})')
+               label=r'$\beta_k^S$')
     
     # Formatting
     all_pos = np.concatenate([intercept_pos, v_pos, s_pos])
     all_labels = intercepts + v_regs + s_regs
+    all_labels = [0,1,1]
     ax.set_xticks(all_pos)
-    ax.set_xticklabels(all_labels, rotation=45, fontsize=10)
-    ax.set_title(f"Block: {block[0]}/{block[1]}", fontsize=20)
+    ax.set_xticklabels(all_labels, fontsize=20)
+    ax.set_ylabel('Coefficient Value', fontsize=30)
+    ax.set_title(f"Block: {block[0]}/{block[1]}", fontsize=30)
     ax.axhline(0, color='gray', linestyle=':')
     ax.legend(fontsize=10)
     
@@ -914,18 +925,16 @@ def inf_based_plot_summary(n_reg, blocks, summary_data, combined_df):
     # Create simplified legends
     coeff_handles = [
         mpatches.Patch(color=intercept_color, label='Intercept'),
-        mpatches.Patch(color=beta_color, label='β (Value)'),
-        mpatches.Patch(color=side_color, label='Side Bias')
+        mpatches.Patch(color=beta_color, label=r'$\beta_k^V$'),
+        mpatches.Patch(color=side_color, label=r'$\beta_k^S$')
     ]
-    legend1 = ax.legend(handles=coeff_handles, title='Coefficient Types',
-                      loc='upper right', bbox_to_anchor=(1.01, 1))
+    legend1 = ax.legend(handles=coeff_handles, title='Coefficients',
+                      loc='upper right', bbox_to_anchor=(1.01, 1),fontsize = 20,title_fontsize=25 )
     
     # Add probability legend
     prob_handles = [mpatches.Patch(color='gray', alpha=1-alphas[i], 
                                   label=f'p={block[0]:.2f}/{block[1]:.2f}') 
                    for i, block in enumerate(prob_blocks)]
-    legend2 = ax.legend(handles=prob_handles, title='Probability Blocks',
-                      loc='upper right', bbox_to_anchor=(1.01, 0.7))
     
     # Add the first legend back
     ax.add_artist(legend1)
@@ -954,27 +963,28 @@ else:
     n_regressors = [2,3,5,7,10]
 
 all_df = []
-for n_reg in n_regressors:
-    for probs_net in blocks:
-        folder = (f"{main_folder}/ForagingBlocks_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
+
+for probs_net in blocks:
+    folder = (f"{main_folder}/ForagingBlocks_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
                 f"d{dec_dur}_prb{probs_net[0]}{probs_net[1]}")
-        if probs_net[0] == 2:
-                seed_task = 13
-                folder = (f"{main_folder}/ForagingBlocks_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
-                    f"d{dec_dur}_"f"prb_task_seed_{seed_task}")
-        
+    if probs_net[0] == 2:
+            seed_task = 13
+            folder = (f"{main_folder}/ForagingBlocks_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
+                f"d{dec_dur}_"f"prb_task_seed_{seed_task}")
+    data_dir = os.path.join(folder, f'analysis_data_{model}')
+    combined_data_file = os.path.join(data_dir, 'all_subjects_data.csv')
+    bad_nets = filter_df_performance(combined_data_file)
+    for n_reg in n_regressors:
+        print(f"Processing {model} with {n_reg} regressors for probabilities {probs_net[0]}-{probs_net[1]}")
         glm_dir = os.path.join(folder, f'{model}_weights_{n_reg}')
-        data_dir = os.path.join(folder, f'analysis_data_{model}')
         combined_glm_file = os.path.join(glm_dir, 'all_subjects_weights.csv')
-        combined_data_file = os.path.join(data_dir, 'all_subjects_data.csv')
         combined_glm_data = os.path.join(glm_dir, 'all_subjects_glm_regressors.csv')
         if os.path.exists(combined_glm_file):
             df = pd.read_csv(combined_glm_file,low_memory=False)
-            df_data = pd.read_csv(combined_glm_data, low_memory=False)
+            print(len(df), "rows in combined GLM file")
             df_median = df.groupby(['seed', 'regressor'])['p_value'].median().reset_index()    
             df = df.groupby(['seed', 'regressor'])[['coefficient','std_err','z_value','p_value','conf_Interval_Low','conf_Interval_High']].mean().reset_index()
             df['p_value'] = df_median['p_value']
-            bad_nets = filter_df_performance(combined_data_file)
             df = df[~df['seed'].isin(bad_nets)]
             df['probability_block'] = probs_net[0]
             df['n_regressors'] = n_reg

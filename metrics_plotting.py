@@ -564,8 +564,6 @@ if __name__ == '__main__':
     fix_dur = 100
     dec_dur = 100
     blk_dur = 38
-    n_regressors = 4
-    n_back = 3
     blocks = np.array([
         [0, 0.9],[0.2, 0.8],[0.3, 0.7],[0.4, 0.6]#,[2,2]
     ])
@@ -604,6 +602,17 @@ if __name__ == '__main__':
     for model in ['glm_prob_switch', 'glm_prob_r', 'inference_based']:#, 'inference_based_v2']:
 
         for probs_net in blocks:
+            #selecto optimal number of trials back for each model and pre-training condition
+            if model == 'glm_prob_r':
+                n_regressors = 7
+                if probs_net[0] == 0.4:
+                    n_regressors = 10
+            if model == 'glm_prob_switch':
+                n_regressors = 10
+                if probs_net[0] == 0.0:
+                    n_regressors = 7
+            if model == 'inference_based':
+                n_back = 3
             folder = (f"{main_folder}/ForagingBlocks_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
                      f"d{dec_dur}_prb{probs_net[0]}{probs_net[1]}")
             #easy way to include custom-trained nets
@@ -650,8 +659,8 @@ if __name__ == '__main__':
     # Generate plots
     # Combine data for plotting
     combined_data = pd.concat(data_file_total, ignore_index=True)
-    plot_combined_switch_analysis(combined_data, 10, blocks[0][0])
-    plot_perf_psychos(combined_data)
+    #plot_combined_switch_analysis(combined_data, 10, blocks[0][0])
+    #plot_perf_psychos(combined_data)
     plot_metrics_comparison(blocks, metrics_data, ['glm_prob_switch', 'glm_prob_r', 'inference_based'])#, 'inference_based_v2'])
     plot_performance_comparison(combined_data,combined_data_file)
     plot_perf_psychos(combined_data)

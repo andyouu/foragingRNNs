@@ -773,12 +773,12 @@ if __name__ == '__main__':
 
     print("Selected blocks:", probs_task)
     probss_net = np.array([[0.0, 0.9],[0.9, 0.0]])
-    model = 'inference_based'  # 'glm_prob_r', 'inference_based', 'glm_prob_switch'
+    model = 'glm_prob_switch'  # 'glm_prob_r', 'inference_based', 'glm_prob_switch'
     prob_nets = [np.array([[0.3, 0.7],[0.7, 0.3]]),
                   np.array([[0.4, 0.6],[0.6, 0.4]]),
                   np.array([[0.2, 0.8],[0.8, 0.2]])]
                  # np.array([[0.0, 0.9],[0.9, 0.0]])]
-    probs_net = np.array([[0.4, 0.6],[0.6, 0.4]])
+    probs_net = np.array([[0.0, 0.9],[0.9, 0.0]])
     # probs_net = np.array([[0.3, 0.7],[0.7, 0.3]])
     # probs_net = np.array([[0.4, 0.6],[0.6, 0.4]])
     # # to avaluate on the same enviroment than the training
@@ -816,11 +816,8 @@ if __name__ == '__main__':
                     os.remove(os.path.join(data_dir, file))
         data_creation(data_dir = data_dir, load_folder=folder, num_steps_exp=1000000, verbose=False, probs_task=probs_task)
     combined_data_file = os.path.join(data_dir, 'all_subjects_data.csv')
-    if model == 'inference_based':
-        n_regressors = [1,2,3,4,5]
-    else: n_regressors = [2,3,4,7,10]
     #for n_back in n_regressors:
-    n_back = 3
+    n_back = 10
     if model == 'inference_based_v2':
         glm_dir = os.path.join(folder, f'{model}_weights')
     else:

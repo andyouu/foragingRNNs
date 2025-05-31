@@ -6,7 +6,7 @@ import os
 
 from new_forage_analysis import weights_computation
 
-def filter_df_performance(df,combined_data_file):
+def filter_df_performance(combined_data_file):
     underperforming_nets = []
     if os.path.exists(combined_data_file):
         data = pd.read_csv(combined_data_file)
@@ -238,23 +238,22 @@ metrics_data = {
 }
     
 for probs_net in blocks:
-    for n_reg in n_regressors:
-        folder = (f"{main_folder}/ForagingBlocks_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
+    folder = (f"{main_folder}/ForagingBlocks_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
                 f"d{dec_dur}_prb{probs_net[0]}{probs_net[1]}")
-        if probs_net[0] == 2:
-                seed_task = 13
-                folder = (f"{main_folder}/ForagingBlocks_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
-                    f"d{dec_dur}_"f"prb_task_seed_{seed_task}")
-        
+    if probs_net[0] == 2:
+            seed_task = 13
+            folder = (f"{main_folder}/ForagingBlocks_w{w_factor}_mITI{mean_ITI}_xITI{max_ITI}_f{fix_dur}_"
+                f"d{dec_dur}_"f"prb_task_seed_{seed_task}")
+
+    data_dir = os.path.join(folder, f'analysis_data_{model}')
+    combined_data_file = os.path.join(data_dir, 'all_subjects_data.csv')
+    bad_nets = filter_df_performance(combined_data_file)
+    for n_reg in n_regressors:        
         glm_dir = os.path.join(folder, f'{model}_weights_{n_reg}')
-        data_dir = os.path.join(folder, f'analysis_data_{model}')
         combined_glm_metrics = os.path.join(glm_dir, 'all_subjects_glm_metrics.csv')
-        combined_data_file = os.path.join(data_dir, 'all_subjects_data.csv')
         combined_glm_data = os.path.join(glm_dir, 'all_subjects_glm_regressors.csv')
         if os.path.exists(combined_glm_metrics):
             df = pd.read_csv(combined_glm_metrics, low_memory=False)
-            df_data = pd.read_csv(combined_glm_data,low_memory=False)
-            bad_nets = filter_df_performance(df,combined_data_file)
             df = df[~df['seed'].isin(bad_nets)]
             #To just plot one point for each seed, comment to see all cross-validation cases
             df = df.groupby('seed').mean()
